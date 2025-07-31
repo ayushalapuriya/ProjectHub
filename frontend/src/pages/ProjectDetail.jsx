@@ -12,10 +12,14 @@ import {
   FaTasks,
   FaComments,
   FaProjectDiagram,
-  FaChartLine
+  FaChartLine,
+  FaUserPlus,
+  FaCheckCircle,
+  FaExclamationTriangle
 } from 'react-icons/fa';
 import { useApi } from '../hooks/useApi';
 import { projectService } from '../services/projectService';
+import { taskService } from '../services/taskService';
 import { useAuth } from '../context/AuthContext';
 import { formatDate, formatRelativeTime } from '../utils/dateUtils';
 import LoadingSpinner from '../components/common/LoadingSpinner';
@@ -23,15 +27,22 @@ import Button from '../components/common/Button';
 import Badge from '../components/common/Badge';
 import Avatar from '../components/common/Avatar';
 import CreateTaskModal from '../components/tasks/CreateTaskModal';
+import InviteModal from '../components/team/InviteModal';
 
 const ProjectDetail = () => {
   const { id } = useParams();
   const { user } = useAuth();
   const [showCreateTaskModal, setShowCreateTaskModal] = useState(false);
+  const [showInviteModal, setShowInviteModal] = useState(false);
   const [activeTab, setActiveTab] = useState('overview');
 
   const { data: projectData, loading, error, refetch } = useApi(
     () => projectService.getProject(id),
+    [id]
+  );
+
+  const { data: tasksData } = useApi(
+    () => taskService.getTasks({ project: id }),
     [id]
   );
 
@@ -86,7 +97,7 @@ const ProjectDetail = () => {
   }
 
   const project = projectData?.data;
-  const tasks = project?.tasks || [];
+  const tasks = tasksData?.data || [];
 
   if (!project) {
     return (
@@ -191,6 +202,203 @@ const ProjectDetail = () => {
         </div>
       </div>
 
+      {/* Tabs */}
+      <div className="bg-white rounded-xl shadow-sm border border-secondary-200">
+        <div className="border-b border-secondary-200">
+          <nav className="flex space-x-8 px-6">
+            {['overview', 'tasks', 'team'].map((tab) => (
+              <button
+                key={tab}
+                onClick={() => setActiveTab(tab)}
+                className={`py-4 px-1 border-b-2 font-medium text-sm capitalize transition-colors ${
+                  activeTab === tab
+                    ? 'border-primary-500 text-primary-600'
+                    : 'border-transparent text-secondary-500 hover:text-secondary-700 hover:border-secondary-300'
+                }`}
+              >
+                {tab}
+              </button>
+            ))}
+          </nav>
+        </div>
+
+        <div className="p-6">
+          {activeTab === 'overview' && (
+            <div className="space-y-6">
+              <div>
+                <h3 className="text-lg font-medium text-secondary-900 mb-4">Project Details</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-sm font-medium text-secondary-700 mb-1">
+                      Start Date
+                    </label>
+                    <p className="text-sm text-secondary-900">{formatDate(project.startDate)}</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-secondary-700 mb-1">
+                      End Date
+                    </label>
+                    <p className="text-sm text-secondary-900">{formatDate(project.endDate)}</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-secondary-700 mb-1">
+                      Priority
+                    </label>
+                    <Badge variant={getPriorityColor(project.priority)}>
+                      {project.priority}
+                    </Badge>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-secondary-700 mb-1">
+                      Manager
+                    </label>
+                    <div className="flex items-center">
+                      <Avatar
+                        src={project.manager?.avatar}
+                        name={project.manager?.name}
+                        size="sm"
+                      />
+                      <span className="ml-2 text-sm text-secondary-900">
+                        {project.manager?.name}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'tasks' && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-medium text-secondary-900">Tasks</h3>
+                <Button
+                  onClick={() => setShowCreateTaskModal(true)}
+                  icon={<FaPlus />}
+                  className="bg-gradient-to-r from-primary-600 to-primary-700"
+                >
+                  Add Task
+                </Button>
+              </div>
+
+              {tasksData?.data?.length > 0 ? (
+                <div className="space-y-3">
+                  {tasksData.data.map((task) => (
+                    <div
+                      key={task._id}
+                      className="border border-secondary-200 rounded-lg p-4 hover:shadow-sm transition-shadow"
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <h4 className="font-medium text-secondary-900">{task.title}</h4>
+                          <p className="text-sm text-secondary-600 mt-1">{task.description}</p>
+                          <div className="flex items-center space-x-4 mt-2">
+                            <Badge variant={getTaskStatusColor(task.status)}>
+                              {task.status.replace('-', ' ')}
+                            </Badge>
+                            <span className="text-xs text-secondary-500">
+                              Due: {formatDate(task.dueDate)}
+                            </span>
+                            {task.assignedTo && (
+                              <div className="flex items-center">
+                                <Avatar
+                                  src={task.assignedTo.avatar}
+                                  name={task.assignedTo.name}
+                                  size="xs"
+                                />
+                                <span className="ml-1 text-xs text-secondary-600">
+                                  {task.assignedTo.name}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        <Badge variant={getPriorityColor(task.priority)}>
+                          {task.priority}
+                        </Badge>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <FaTasks className="mx-auto h-12 w-12 text-secondary-400 mb-4" />
+                  <h3 className="text-lg font-medium text-secondary-900 mb-2">No tasks yet</h3>
+                  <p className="text-secondary-600 mb-4">
+                    Get started by creating your first task for this project.
+                  </p>
+                  <Button
+                    onClick={() => setShowCreateTaskModal(true)}
+                    icon={<FaPlus />}
+                  >
+                    Create First Task
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeTab === 'team' && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-medium text-secondary-900">Team Members</h3>
+                {(user?.role === 'admin' || project.manager._id === user?._id) && (
+                  <Button
+                    onClick={() => setShowInviteModal(true)}
+                    icon={<FaUserPlus />}
+                    className="bg-gradient-to-r from-success-600 to-success-700"
+                  >
+                    Invite Member
+                  </Button>
+                )}
+              </div>
+
+              {project.team?.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {project.team.map((member) => (
+                    <div
+                      key={member._id}
+                      className="border border-secondary-200 rounded-lg p-4"
+                    >
+                      <div className="flex items-center">
+                        <Avatar
+                          src={member.avatar}
+                          name={member.name}
+                          size="md"
+                        />
+                        <div className="ml-3">
+                          <h4 className="font-medium text-secondary-900">{member.name}</h4>
+                          <p className="text-sm text-secondary-600">{member.email}</p>
+                          <Badge variant={member.role === 'admin' ? 'danger' : member.role === 'manager' ? 'warning' : 'primary'}>
+                            {member.role}
+                          </Badge>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <FaUsers className="mx-auto h-12 w-12 text-secondary-400 mb-4" />
+                  <h3 className="text-lg font-medium text-secondary-900 mb-2">No team members</h3>
+                  <p className="text-secondary-600 mb-4">
+                    Invite team members to collaborate on this project.
+                  </p>
+                  {(user?.role === 'admin' || project.manager._id === user?._id) && (
+                    <Button
+                      onClick={() => setShowInviteModal(true)}
+                      icon={<FaUserPlus />}
+                    >
+                      Invite First Member
+                    </Button>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+
       {/* Create Task Modal */}
       <CreateTaskModal
         isOpen={showCreateTaskModal}
@@ -198,6 +406,16 @@ const ProjectDetail = () => {
         projectId={project._id}
         onSuccess={() => {
           setShowCreateTaskModal(false);
+          refetch();
+        }}
+      />
+
+      {/* Invite Modal */}
+      <InviteModal
+        isOpen={showInviteModal}
+        onClose={() => setShowInviteModal(false)}
+        onSuccess={() => {
+          setShowInviteModal(false);
           refetch();
         }}
       />
