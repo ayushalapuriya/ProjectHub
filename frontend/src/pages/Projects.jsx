@@ -246,11 +246,6 @@ const Projects = () => {
           <p className="mt-1 text-sm text-secondary-500">
             Try adjusting your search or filter criteria.
           </p>
-          <div className="mt-6">
-            <Button icon={<FaPlus />}>
-              Create New Project
-            </Button>
-          </div>
         </div>
       )}
 
