@@ -8,20 +8,16 @@ import {
   FaUsers,
   FaCalendarAlt,
   FaClock,
-  FaDollarSign,
   FaTasks,
-  FaComments,
   FaProjectDiagram,
   FaChartLine,
-  FaUserPlus,
-  FaCheckCircle,
-  FaExclamationTriangle
+  FaUserPlus
 } from 'react-icons/fa';
 import { useApi } from '../hooks/useApi';
 import { projectService } from '../services/projectService';
 import { taskService } from '../services/taskService';
 import { useAuth } from '../context/AuthContext';
-import { formatDate, formatRelativeTime } from '../utils/dateUtils';
+import { formatDate } from '../utils/dateUtils';
 import LoadingSpinner from '../components/common/LoadingSpinner';
 import Button from '../components/common/Button';
 import Badge from '../components/common/Badge';
