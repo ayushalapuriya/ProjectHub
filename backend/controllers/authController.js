@@ -8,6 +8,15 @@ const register = async (req, res) => {
   try {
     const { name, email, password, role, department, skills } = req.body;
 
+    // Validate role
+    const validRoles = ['member', 'manager', 'admin'];
+    if (role && !validRoles.includes(role)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid role. Must be member, manager, or admin'
+      });
+    }
+
     // Check if user exists
     const userExists = await User.findOne({ email });
     if (userExists) {

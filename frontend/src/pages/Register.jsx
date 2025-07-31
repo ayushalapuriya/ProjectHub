@@ -79,6 +79,12 @@ const Register = () => {
       newErrors.confirmPassword = 'Passwords do not match';
     }
 
+    if (!formData.role) {
+      newErrors.role = 'Please select a role';
+    } else if (!['member', 'manager', 'admin'].includes(formData.role)) {
+      newErrors.role = 'Please select a valid role';
+    }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -196,6 +202,40 @@ const Register = () => {
                         {errors.email}
                       </p>
                     )}
+                  </div>
+
+                  <div>
+                    <label htmlFor="role" className="block text-sm font-medium text-secondary-700 mb-2">
+                      Role
+                    </label>
+                    <select
+                      id="role"
+                      name="role"
+                      value={formData.role}
+                      onChange={handleChange}
+                      className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors ${
+                        errors.role
+                          ? 'border-danger-300 bg-danger-50'
+                          : 'border-secondary-300 hover:border-secondary-400'
+                      }`}
+                    >
+                      <option value="member">Team Member</option>
+                      <option value="manager">Project Manager</option>
+                      <option value="admin">Administrator</option>
+                    </select>
+                    {errors.role && (
+                      <p className="mt-2 text-sm text-danger-600 flex items-center">
+                        <span className="mr-1">⚠️</span>
+                        {errors.role}
+                      </p>
+                    )}
+                    <div className="mt-2 text-xs text-secondary-500">
+                      <div className="space-y-1">
+                        <div><strong>Team Member:</strong> Can view projects and tasks, create tasks in assigned projects</div>
+                        <div><strong>Project Manager:</strong> Can create and manage projects, invite team members</div>
+                        <div><strong>Administrator:</strong> Full access to all features and system management</div>
+                      </div>
+                    </div>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

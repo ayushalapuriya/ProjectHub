@@ -35,7 +35,11 @@ const registerValidation = [
     .withMessage('Please provide a valid email'),
   body('password')
     .isLength({ min: 6 })
-    .withMessage('Password must be at least 6 characters long')
+    .withMessage('Password must be at least 6 characters long'),
+  body('role')
+    .optional()
+    .isIn(['member', 'manager', 'admin'])
+    .withMessage('Role must be member, manager, or admin')
 ];
 
 const loginValidation = [
