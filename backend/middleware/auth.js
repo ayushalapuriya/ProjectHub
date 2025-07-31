@@ -1,59 +1,60 @@
-const jwt = require("jsonwebtoken")
-const User = require("../models/User")
+const jwt = require('jsonwebtoken');
+const User = require('../models/User');
 
-const auth = async (req, res, next) => {
-  try {
-    const token = req.header("Authorization")?.replace("Bearer ", "")
-    console.log("Auth middleware token:", token)
+// Protect routes - verify JWT token
+const protect = async (req, res, next) => {
+  let token;
 
-    if (!token) {
+  if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
+    try {
+      // Get token from header
+      token = req.headers.authorization.split(' ')[1];
+
+      // Verify token
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+      // Get user from token
+      req.user = await User.findById(decoded.id).select('-password');
+
+      if (!req.user) {
+        return res.status(401).json({
+          success: false,
+          message: 'User not found'
+        });
+      }
+
+      next();
+    } catch (error) {
+      console.error('Token verification error:', error);
       return res.status(401).json({
         success: false,
-        message: "No token provided, authorization denied",
-      })
+        message: 'Not authorized, token failed'
+      });
     }
-
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || "your-secret-key")
-    console.log("Auth middleware decoded token:", decoded)
-    const user = await User.findById(decoded.id).select("-password")
-    console.log("Auth middleware user role:", user?.role)
-
-    if (!user) {
-      return res.status(401).json({
-        success: false,
-        message: "Token is not valid",
-      })
-    }
-
-    if (!user.isActive) {
-      return res.status(401).json({
-        success: false,
-        message: "Account is deactivated",
-      })
-    }
-
-    req.user = user
-    next()
-  } catch (error) {
-    console.error("Auth middleware error:", error)
-    res.status(401).json({
-      success: false,
-      message: "Token is not valid",
-    })
   }
-}
 
-// Role-based authorization
+  if (!token) {
+    return res.status(401).json({
+      success: false,
+      message: 'Not authorized, no token'
+    });
+  }
+};
+
+// Grant access to specific roles
 const authorize = (...roles) => {
   return (req, res, next) => {
     if (!roles.includes(req.user.role)) {
       return res.status(403).json({
         success: false,
-        message: "Access denied. Insufficient permissions.",
-      })
+        message: `User role ${req.user.role} is not authorized to access this route`
+      });
     }
-    next()
-  }
-}
+    next();
+  };
+};
 
-module.exports = { auth, authorize }
+module.exports = {
+  protect,
+  authorize
+};

@@ -1,122 +1,130 @@
-const mongoose = require("mongoose")
+const mongoose = require('mongoose');
 
-const projectSchema = new mongoose.Schema(
-  {
-    name: {
-      type: String,
-      required: [true, "Project name is required"],
-      trim: true,
-      maxlength: [100, "Project name cannot exceed 100 characters"],
-    },
-    description: {
-      type: String,
-      required: [true, "Project description is required"],
-      maxlength: [500, "Description cannot exceed 500 characters"],
-    },
-    status: {
-      type: String,
-      enum: ["planning", "in-progress", "completed", "on-hold", "cancelled"],
-      default: "planning",
-    },
-    priority: {
-      type: String,
-      enum: ["low", "medium", "high", "urgent"],
-      default: "medium",
-    },
-    startDate: {
-      type: Date,
-      required: [true, "Start date is required"],
-    },
-    endDate: {
-      type: Date,
-      required: [true, "End date is required"],
-    },
-    budget: {
-      type: Number,
-      default: 0,
-      min: [0, "Budget cannot be negative"],
-    },
-    spent: {
-      type: Number,
-      default: 0,
-      min: [0, "Spent amount cannot be negative"],
-    },
-    progress: {
-      type: Number,
-      default: 0,
-      min: [0, "Progress cannot be negative"],
-      max: [100, "Progress cannot exceed 100%"],
-    },
-    manager: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-      required: [true, "Project manager is required"],
-    },
-    teamMembers: [
-      {
-        user: {
-          type: mongoose.Schema.Types.ObjectId,
-          ref: "User",
-        },
-        role: {
-          type: String,
-          default: "member",
-        },
-        joinedAt: {
-          type: Date,
-          default: Date.now,
-        },
-      },
-    ],
-    invitedMembers: [
-      {
-        email: {
-          type: String,
-          required: true,
-          lowercase: true,
-          trim: true,
-        },
-        status: {
-          type: String,
-          enum: ["pending", "accepted", "declined"],
-          default: "pending",
-        },
-        invitedAt: {
-          type: Date,
-          default: Date.now,
-        },
-      },
-    ],
-    tags: [
-      {
-        type: String,
-        trim: true,
-      },
-    ],
-    attachments: [
-      {
-        filename: String,
-        originalName: String,
-        path: String,
-        size: Number,
-        uploadedBy: {
-          type: mongoose.Schema.Types.ObjectId,
-          ref: "User",
-        },
-        uploadedAt: {
-          type: Date,
-          default: Date.now,
-        },
-      },
-    ],
+const resourceSchema = new mongoose.Schema({
+  name: {
+    type: String,
+    required: true
   },
-  {
-    timestamps: true,
+  type: {
+    type: String,
+    enum: ['human', 'equipment', 'software', 'other'],
+    required: true
   },
-)
+  allocated: {
+    type: Number,
+    default: 0
+  },
+  available: {
+    type: Number,
+    required: true
+  },
+  unit: {
+    type: String,
+    default: 'hours'
+  }
+});
 
-// Index for better query performance
-projectSchema.index({ manager: 1, status: 1 })
-projectSchema.index({ "teamMembers.user": 1 })
+const projectSchema = new mongoose.Schema({
+  name: {
+    type: String,
+    required: [true, 'Please provide a project name'],
+    trim: true,
+    maxlength: [100, 'Project name cannot be more than 100 characters']
+  },
+  description: {
+    type: String,
+    required: [true, 'Please provide a project description'],
+    maxlength: [500, 'Description cannot be more than 500 characters']
+  },
+  status: {
+    type: String,
+    enum: ['planning', 'active', 'on-hold', 'completed', 'cancelled'],
+    default: 'planning'
+  },
+  priority: {
+    type: String,
+    enum: ['low', 'medium', 'high', 'critical'],
+    default: 'medium'
+  },
+  progress: {
+    type: Number,
+    default: 0,
+    min: 0,
+    max: 100
+  },
+  startDate: {
+    type: Date,
+    required: [true, 'Please provide a start date']
+  },
+  endDate: {
+    type: Date,
+    required: [true, 'Please provide an end date']
+  },
+  manager: {
+    type: mongoose.Schema.ObjectId,
+    ref: 'User',
+    required: [true, 'Please assign a project manager']
+  },
+  team: [{
+    user: {
+      type: mongoose.Schema.ObjectId,
+      ref: 'User',
+      required: true
+    },
+    role: {
+      type: String,
+      default: 'member'
+    },
+    joinedAt: {
+      type: Date,
+      default: Date.now
+    }
+  }],
+  budget: {
+    type: Number,
+    default: 0
+  },
+  resources: [resourceSchema],
+  tags: [{
+    type: String
+  }],
+  isActive: {
+    type: Boolean,
+    default: true
+  }
+}, {
+  timestamps: true,
+  toJSON: { virtuals: true },
+  toObject: { virtuals: true }
+});
 
-module.exports = mongoose.model("Project", projectSchema)
+// Virtual for task count
+projectSchema.virtual('taskCount', {
+  ref: 'Task',
+  localField: '_id',
+  foreignField: 'project',
+  count: true
+});
+
+// Calculate progress based on tasks
+projectSchema.methods.calculateProgress = async function() {
+  const Task = mongoose.model('Task');
+  const tasks = await Task.find({ project: this._id });
+  
+  if (tasks.length === 0) return 0;
+  
+  const totalProgress = tasks.reduce((sum, task) => sum + task.progress, 0);
+  return Math.round(totalProgress / tasks.length);
+};
+
+// Pre-save middleware to update progress
+projectSchema.pre('save', async function(next) {
+  if (this.isNew || this.isModified('status')) {
+    if (this.status === 'completed') {
+      this.progress = 100;
+    }
+  }
+  next();
+});
+
+module.exports = mongoose.model('Project', projectSchema);

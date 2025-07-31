@@ -1,235 +1,129 @@
-const express = require("express")
-const mongoose = require("mongoose")
-const cors = require("cors")
-const helmet = require("helmet")
-const rateLimit = require("express-rate-limit")
-const http = require("http")
-const socketIo = require("socket.io")
-require("dotenv").config()
+const express = require('express');
+const cors = require('cors');
+const dotenv = require('dotenv');
+const { createServer } = require('http');
+const { Server } = require('socket.io');
+const connectDB = require('./config/database');
+const errorHandler = require('./middleware/errorHandler');
 
-const app = express()
-const server = http.createServer(app)
+// Load env vars
+dotenv.config();
 
-// Socket.io setup
-const io = socketIo(server, {
+// Connect to database
+connectDB();
+
+const app = express();
+
+// Create HTTP server
+const server = createServer(app);
+
+// Initialize Socket.io
+const io = new Server(server, {
   cors: {
-    origin: process.env.CLIENT_URL || "http://localhost:3000",
-    methods: ["GET", "POST"],
-    credentials: true,
-  },
-})
+    origin: process.env.NODE_ENV === 'production' 
+      ? process.env.CLIENT_URL 
+      : "http://localhost:3000",
+    methods: ["GET", "POST"]
+  }
+});
 
-// Make io accessible to routes
-app.set("io", io)
+// Make io accessible to other modules
+module.exports.io = io;
 
-// Security middleware
-app.use(helmet())
+// Body parser middleware
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: false }));
 
-// Rate limiting
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs
-})
-app.use(limiter)
-
-// Middleware
-app.use(
-  cors({
-    origin: process.env.CLIENT_URL || "http://localhost:3000",
-    credentials: true,
-  }),
-)
-app.use(express.json({ limit: "10mb" }))
-app.use(express.urlencoded({ extended: true }))
+// CORS middleware
+app.use(cors({
+  origin: process.env.NODE_ENV === 'production' 
+    ? process.env.CLIENT_URL 
+    : "http://localhost:3000",
+  credentials: true
+}));
 
 // Socket.io connection handling
-const connectedUsers = new Map()
+io.on('connection', (socket) => {
+  console.log('User connected:', socket.id);
 
-io.on("connection", (socket) => {
-  console.log("User connected:", socket.id)
+  // Join user to their personal room for notifications
+  socket.on('join', (userId) => {
+    socket.join(userId);
+    console.log(`User ${userId} joined their room`);
+  });
 
-  // Handle user authentication and join rooms
-  socket.on("authenticate", (userData) => {
-    if (userData && userData.userId) {
-      connectedUsers.set(socket.id, {
-        userId: userData.userId,
-        name: userData.name,
-        email: userData.email,
-        role: userData.role,
-      })
+  // Handle project room joining
+  socket.on('join-project', (projectId) => {
+    socket.join(`project-${projectId}`);
+    console.log(`User joined project room: project-${projectId}`);
+  });
 
-      // Join user-specific room
-      socket.join(`user_${userData.userId}`)
-
-      // Join project rooms based on user's projects
-      if (userData.projects && userData.projects.length > 0) {
-        userData.projects.forEach((projectId) => {
-          socket.join(`project_${projectId}`)
-        })
-      }
-
-      console.log(`User ${userData.name} authenticated and joined rooms`)
-
-      // Notify others that user is online
-      socket.broadcast.emit("user_online", {
-        userId: userData.userId,
-        name: userData.name,
-        timestamp: new Date(),
-      })
-    }
-  })
-
-  // Handle joining project rooms
-  socket.on("join_project", (projectId) => {
-    socket.join(`project_${projectId}`)
-    console.log(`Socket ${socket.id} joined project room: project_${projectId}`)
-  })
-
-  // Handle leaving project rooms
-  socket.on("leave_project", (projectId) => {
-    socket.leave(`project_${projectId}`)
-    console.log(`Socket ${socket.id} left project room: project_${projectId}`)
-  })
+  // Handle leaving project room
+  socket.on('leave-project', (projectId) => {
+    socket.leave(`project-${projectId}`);
+    console.log(`User left project room: project-${projectId}`);
+  });
 
   // Handle task updates
-  socket.on("task_updated", (data) => {
-    const user = connectedUsers.get(socket.id)
-    if (user?.userId && data?.projectId) {
-      socket.to(`project_${data.projectId}`).emit("task_updated", {
-        ...data,
-        updatedBy: user,
-        timestamp: new Date(),
-      })
-    }
-  })
+  socket.on('task-update', (data) => {
+    socket.to(`project-${data.projectId}`).emit('task-updated', data);
+  });
 
   // Handle project updates
-  socket.on("project_updated", (data) => {
-    const user = connectedUsers.get(socket.id)
-    if (user?.userId && data?.projectId) {
-      socket.to(`project_${data.projectId}`).emit("project_updated", {
-        ...data,
-        updatedBy: user,
-        timestamp: new Date(),
-      })
-    }
-  })
+  socket.on('project-update', (data) => {
+    socket.to(`project-${data.projectId}`).emit('project-updated', data);
+  });
 
-  // Handle new comments
-  socket.on("new_comment", (data) => {
-    const user = connectedUsers.get(socket.id)
-    if (user?.userId) {
-      // Emit to project room
-      if (data?.projectId) {
-        socket.to(`project_${data.projectId}`).emit("new_comment", {
-          ...data,
-          author: user,
-          timestamp: new Date(),
-        })
-      }
-
-      // Emit to mentioned users
-      if (data?.mentionedUsers?.length > 0) {
-        data.mentionedUsers.forEach((userId) => {
-          socket.to(`user_${userId}`).emit("notification", {
-            type: "mention",
-            title: "You were mentioned",
-            message: `${user.name} mentioned you in a comment`,
-            data: data,
-            timestamp: new Date(),
-          })
-        })
-      }
-    }
-  })
-
-  // Handle typing indicators
-  socket.on("typing_start", (data) => {
-    const user = connectedUsers.get(socket.id)
-    if (user?.userId && data?.projectId) {
-      socket.to(`project_${data.projectId}`).emit("user_typing", {
-        userId: user.userId,
-        name: user.name,
-        location: data.location, // task, project, etc.
-        locationId: data.locationId,
-      })
-    }
-  })
-
-  socket.on("typing_stop", (data) => {
-    const user = connectedUsers.get(socket.id)
-    if (user?.userId && data?.projectId) {
-      socket.to(`project_${data.projectId}`).emit("user_stopped_typing", {
-        userId: user.userId,
-        location: data.location,
-        locationId: data.locationId,
-      })
-    }
-  })
-
-  // Handle notifications
-  socket.on("send_notification", (data) => {
-    if (data.targetUserId) {
-      socket.to(`user_${data.targetUserId}`).emit("notification", {
-        ...data,
-        timestamp: new Date(),
-      })
-    }
-  })
-
-  // Handle disconnect
-  socket.on("disconnect", () => {
-    const user = connectedUsers.get(socket.id)
-    if (user) {
-      console.log(`User ${user.name} disconnected`)
-
-      // Notify others that user is offline
-      socket.broadcast.emit("user_offline", {
-        userId: user.userId,
-        name: user.name,
-        timestamp: new Date(),
-      })
-
-      connectedUsers.delete(socket.id)
-    }
-  })
-})
+  socket.on('disconnect', () => {
+    console.log('User disconnected:', socket.id);
+  });
+});
 
 // Routes
-app.use("/api/auth", require("./routes/auth"))
-app.use("/api/users", require("./routes/users"))
-app.use("/api/projects", require("./routes/projects"))
-app.use("/api/tasks", require("./routes/tasks"))
-app.use("/api/resources", require("./routes/resources"))
+app.use('/api/auth', require('./routes/auth'));
+app.use('/api/projects', require('./routes/projects'));
+app.use('/api/tasks', require('./routes/tasks'));
+app.use('/api/notifications', require('./routes/notifications'));
+app.use('/api/users', require('./routes/users'));
+app.use('/api/invitations', require('./routes/invitations'));
 
-// Error handling middleware
-app.use((err, req, res, next) => {
-  console.error(err.stack)
-  res.status(500).json({
-    success: false,
-    message: "Something went wrong!",
-    error: process.env.NODE_ENV === "development" ? err.message : {},
-  })
-})
+// Health check route
+app.get('/api/health', (req, res) => {
+  res.json({
+    success: true,
+    message: 'Server is running',
+    timestamp: new Date().toISOString()
+  });
+});
 
-// 404 handler
-app.use("*", (req, res) => {
+// Error handler middleware (must be last)
+app.use(errorHandler);
+
+// Handle 404
+app.use('*', (req, res) => {
   res.status(404).json({
     success: false,
-    message: "Route not found",
-  })
-})
+    message: 'Route not found'
+  });
+});
 
-// Database connection
-mongoose
-  .connect(process.env.MONGODB_URI || "mongodb://localhost:27017/project_management", {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-  })
-  .then(() => console.log("MongoDB connected successfully"))
-  .catch((err) => console.error("MongoDB connection error:", err))
+const PORT = process.env.PORT || 5000;
 
-const PORT = process.env.PORT || 5000
 server.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`)
-})
+  console.log(`Server running in ${process.env.NODE_ENV} mode on port ${PORT}`);
+});
+
+// Handle unhandled promise rejections
+process.on('unhandledRejection', (err, promise) => {
+  console.log(`Error: ${err.message}`);
+  // Close server & exit process
+  server.close(() => {
+    process.exit(1);
+  });
+});
+
+// Handle uncaught exceptions
+process.on('uncaughtException', (err) => {
+  console.log(`Error: ${err.message}`);
+  process.exit(1);
+});
