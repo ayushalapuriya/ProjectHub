@@ -7,6 +7,7 @@ const Notification = require('../models/Notification');
 // @access  Private
 const getProjects = async (req, res) => {
   try {
+
     const { search, status, priority, page = 1, limit = 10 } = req.query;
 
     // Build query
@@ -44,6 +45,8 @@ const getProjects = async (req, res) => {
     }
 
     const total = await Project.countDocuments(query);
+
+
 
     res.json({
       success: true,
@@ -125,12 +128,32 @@ const createProject = async (req, res) => {
       tags
     } = req.body;
 
+
+
+    // Validate dates
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid date format provided'
+      });
+    }
+
+    if (start >= end) {
+      return res.status(400).json({
+        success: false,
+        message: 'End date must be after start date'
+      });
+    }
+
     // Create project
     const project = await Project.create({
       name,
       description,
-      startDate: new Date(startDate),
-      endDate: new Date(endDate),
+      startDate: start,
+      endDate: end,
       priority: priority || 'medium',
       manager: manager || req.user._id,
       team: team || [],
@@ -169,7 +192,8 @@ const createProject = async (req, res) => {
     console.error('Create project error:', error);
     res.status(500).json({
       success: false,
-      message: error.message || 'Server error'
+      message: error.message || 'Server error',
+      details: error.message
     });
   }
 };

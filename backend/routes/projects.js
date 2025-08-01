@@ -35,11 +35,25 @@ const projectValidation = [
     .isLength({ min: 5, max: 1000 })
     .withMessage('Description must be between 5 and 1000 characters'),
   body('startDate')
-    .isISO8601()
-    .withMessage('Please provide a valid start date'),
+    .notEmpty()
+    .withMessage('Start date is required')
+    .custom((value) => {
+      const date = new Date(value);
+      if (isNaN(date.getTime())) {
+        throw new Error('Please provide a valid start date');
+      }
+      return true;
+    }),
   body('endDate')
-    .isISO8601()
-    .withMessage('Please provide a valid end date')
+    .notEmpty()
+    .withMessage('End date is required')
+    .custom((value) => {
+      const date = new Date(value);
+      if (isNaN(date.getTime())) {
+        throw new Error('Please provide a valid end date');
+      }
+      return true;
+    })
 ];
 
 // Routes

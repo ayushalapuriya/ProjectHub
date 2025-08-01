@@ -68,8 +68,10 @@ const Login = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
-    if (!validateForm()) return;
+
+    if (!validateForm()) {
+      return;
+    }
 
     try {
       await login(formData.email, formData.password);
@@ -225,6 +227,34 @@ const Login = () => {
                         {errors.password}
                       </p>
                     )}
+                  </div>
+                </div>
+
+                {/* Demo Login Buttons */}
+                <div className="bg-blue-50 p-4 rounded-lg">
+                  <h3 className="text-sm font-medium text-blue-900 mb-3">Quick Demo Login:</h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setFormData({ email: 'admin@projecthub.com', password: 'password123' })}
+                      className="px-3 py-2 text-xs bg-red-100 text-red-800 rounded hover:bg-red-200 transition-colors"
+                    >
+                      Admin Login
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFormData({ email: 'manager@projecthub.com', password: 'password123' })}
+                      className="px-3 py-2 text-xs bg-green-100 text-green-800 rounded hover:bg-green-200 transition-colors"
+                    >
+                      Manager Login
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFormData({ email: 'member@projecthub.com', password: 'password123' })}
+                      className="px-3 py-2 text-xs bg-blue-100 text-blue-800 rounded hover:bg-blue-200 transition-colors"
+                    >
+                      Member Login
+                    </button>
                   </div>
                 </div>
 

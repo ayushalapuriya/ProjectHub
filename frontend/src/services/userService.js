@@ -28,6 +28,7 @@ export const userService = {
   // Get dashboard data
   getDashboard: async () => {
     const response = await api.get('/users/dashboard');
+    console.log(response.data)
     return response.data;
   }
 };

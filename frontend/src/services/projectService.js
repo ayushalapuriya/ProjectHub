@@ -10,6 +10,7 @@ export const projectService = {
   // Get single project
   getProject: async (id) => {
     const response = await api.get(`/projects/${id}`);
+    console.log("GET PRoject" ,response.data)
     return response.data;
   },
 

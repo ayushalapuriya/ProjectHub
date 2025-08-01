@@ -71,12 +71,24 @@ const login = async (req, res) => {
   try {
     const { email, password } = req.body;
 
+    // Validate input
+    if (!email || !password) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide email and password'
+      });
+    }
+
     // Check for user
     const user = await User.findOne({ email }).select('+password');
 
     if (user && (await user.matchPassword(password))) {
+
+      const token = generateToken(user._id);
+
       res.json({
         success: true,
+        token,
         data: {
           _id: user._id,
           name: user.name,
@@ -84,21 +96,20 @@ const login = async (req, res) => {
           role: user.role,
           department: user.department,
           skills: user.skills,
-          avatar: user.avatar,
-          token: generateToken(user._id)
+          avatar: user.avatar
         }
       });
     } else {
       res.status(401).json({
         success: false,
-        message: 'Invalid credentials'
+        message: 'Invalid email or password'
       });
     }
   } catch (error) {
     console.error('Login error:', error);
     res.status(500).json({
       success: false,
-      message: 'Server error'
+      message: 'Server error during login'
     });
   }
 };

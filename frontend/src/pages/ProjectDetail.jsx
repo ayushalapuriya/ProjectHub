@@ -32,10 +32,13 @@ const ProjectDetail = () => {
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [activeTab, setActiveTab] = useState('overview');
 
-  const { data: projectData, loading, error, refetch } = useApi(
-    () => projectService.getProject(id),
-    [id]
-  );
+  const { data: projectData, loading, error, refetch } = useApi(()=>{
+
+    return projectService.getProject(id)
+  },
+    [id]);
+
+    console.log(projectData)
 
   const { data: tasksData } = useApi(
     () => taskService.getTasks({ project: id }),

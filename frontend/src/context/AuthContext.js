@@ -101,21 +101,29 @@ export const AuthProvider = ({ children }) => {
   const login = async (email, password) => {
     try {
       dispatch({ type: 'AUTH_START' });
+
       const response = await authService.login(email, password);
 
-      localStorage.setItem('token', response.data.token);
+      // Store token
+      const token = response.token || response.data?.token;
+      if (token) {
+        localStorage.setItem('token', token);
+      }
+
+      // Get user data
+      const userData = response.data || response;
 
       dispatch({
         type: 'AUTH_SUCCESS',
         payload: {
-          user: response.data,
-          token: response.data.token
+          user: userData,
+          token: token
         }
       });
 
       return response;
     } catch (error) {
-      const message = error.response?.data?.message || 'Login failed';
+      const message = error.response?.data?.message || error.message || 'Login failed';
       dispatch({
         type: 'AUTH_FAIL',
         payload: message

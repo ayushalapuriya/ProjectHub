@@ -1,15 +1,14 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { FaPlus, FaSearch, FaFilter, FaProjectDiagram, FaUsers, FaCalendarAlt, FaClock, FaEdit, FaTrash } from 'react-icons/fa';
-import { useApi } from '../hooks/useApi';
-import { projectService } from '../services/projectService';
+import { FaPlus, FaSearch, FaFilter, FaUsers } from 'react-icons/fa';
 import { useAuth } from '../context/AuthContext';
-import { formatDate, formatRelativeTime } from '../utils/dateUtils';
-import LoadingSpinner from '../components/common/LoadingSpinner';
+import { projectService } from '../services/projectService';
 import Button from '../components/common/Button';
+import LoadingSpinner from '../components/common/LoadingSpinner';
+import CreateProjectModal from '../components/projects/CreateProjectModal';
 import Badge from '../components/common/Badge';
 import Avatar from '../components/common/Avatar';
-import CreateProjectModal from '../components/projects/CreateProjectModal';
+import { formatDate } from '../utils/dateUtils';
 
 const Projects = () => {
   const { user } = useAuth();
@@ -17,54 +16,43 @@ const Projects = () => {
   const [statusFilter, setStatusFilter] = useState('');
   const [priorityFilter, setPriorityFilter] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [projects, setProjects] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  const { data: projectsData, loading, error, refetch } = useApi(
-    () => projectService.getProjects({
-      search: searchQuery,
-      status: statusFilter,
-      priority: priorityFilter
-    }),
-    [searchQuery, statusFilter, priorityFilter]
-  );
+  const fetchProjects = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await projectService.getProjects({
+        search: searchQuery,
+        status: statusFilter,
+        priority: priorityFilter
+      });
+      setProjects(response.data || []);
+    } catch (err) {
+      console.error('Error fetching projects:', err);
+      setError(err.message || 'Failed to load projects');
+    } finally {
+      setLoading(false);
+    }
+  };
 
+  useEffect(() => {
+    fetchProjects();
+  }, [searchQuery, statusFilter, priorityFilter]);
 
+  const handleCreateSuccess = () => {
+    setShowCreateModal(false);
+    fetchProjects();
+  };
 
   const handleSearch = (e) => {
     e.preventDefault();
-    // Search is handled by the useApi dependency
+    // Search is handled by the fetchProjects dependency
   };
 
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'planning': return 'warning';
-      case 'active': return 'primary';
-      case 'on-hold': return 'secondary';
-      case 'completed': return 'success';
-      case 'cancelled': return 'danger';
-      default: return 'secondary';
-    }
-  };
 
-  const getPriorityColor = (priority) => {
-    switch (priority) {
-      case 'low': return 'success';
-      case 'medium': return 'warning';
-      case 'high': return 'danger';
-      case 'critical': return 'danger';
-      default: return 'secondary';
-    }
-  };
-
-  const getProgressColor = (progress) => {
-    if (progress >= 80) return 'success';
-    if (progress >= 50) return 'primary';
-    if (progress >= 25) return 'warning';
-    return 'danger';
-  };
-
-  const handleCreateSuccess = () => {
-    refetch();
-  };
 
   if (loading) {
     return (
@@ -82,10 +70,12 @@ const Projects = () => {
     );
   }
 
-  const projects = projectsData?.data || [];
+
 
   return (
     <div className="space-y-6">
+
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
         <div>

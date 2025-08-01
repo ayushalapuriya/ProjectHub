@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { 
   FaProjectDiagram, 
@@ -18,14 +18,28 @@ import Badge from '../components/common/Badge';
 import Avatar from '../components/common/Avatar';
 import Button from '../components/common/Button';
 import ActivityFeed from '../components/common/ActivityFeed';
+import api from '../services/api';
 
 const Dashboard = () => {
   const { user } = useAuth();
-  const { data: dashboardData, loading, error } = useApi(
-    () => userService.getDashboard(),
-    []
-  );
+  const [dashboardData, setDashboardData] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  // const { data: dashboardData, loading, error } = useApi(()=>{
+    
+  //   return userService.getDashboard()
+  // },
+  //   []
+  // );
 
+  useEffect(() => {
+    (async () => {
+      const response = await api.get('/users/dashboard');
+      const {data} = response.data
+      setDashboardData(data)
+      setLoading(false);
+    })()
+  }, []);
 
 
   if (loading) {

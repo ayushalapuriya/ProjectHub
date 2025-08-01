@@ -11,7 +11,8 @@ export const useApi = (apiFunction, dependencies = []) => {
         setLoading(true);
         setError(null);
         const result = await apiFunction();
-        setData(result.data);
+        console.log("USEAPI",result)
+        setData(result);
       } catch (err) {
         console.error('useApi: API error:', err);
         setError(err.response?.data?.message || 'An error occurred');
