@@ -6,7 +6,7 @@ import { useAsyncOperation } from '../../hooks/useApi';
 import Button from '../common/Button';
 import Modal from '../common/Modal';
 
-const InviteModal = ({ isOpen, onClose, onSuccess }) => {
+const InviteModal = ({ isOpen, onClose, onSuccess, projectId }) => {
   const { execute, loading } = useAsyncOperation();
   
   const [formData, setFormData] = useState({
@@ -55,7 +55,11 @@ const InviteModal = ({ isOpen, onClose, onSuccess }) => {
     }
 
     try {
-      const result = await execute(() => invitationService.sendInvitation(formData));
+      const invitationData = {
+        ...formData,
+        projectId: projectId // Include project ID for project-specific invitations
+      };
+      const result = await execute(() => invitationService.sendInvitation(invitationData));
       
       toast.success(`Invitation sent to ${formData.email}!`);
       

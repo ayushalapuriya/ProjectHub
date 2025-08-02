@@ -312,18 +312,16 @@ const ProjectDetail = () => {
               {tasksData?.data?.length > 0 ? (
                 <div className="space-y-3">
                   {tasksData.data.map((task) => (
-                    <div
+                    <Link
                       key={task._id}
-                      className="border border-secondary-200 rounded-lg p-4 hover:shadow-sm transition-shadow"
+                      to={`/tasks/${task._id}`}
+                      className="block border border-secondary-200 rounded-lg p-4 hover:shadow-md hover:border-primary-300 transition-all cursor-pointer"
                     >
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
-                          <Link
-                            to={`/tasks/${task._id}`}
-                            className="font-medium text-secondary-900 hover:text-primary-600 transition-colors"
-                          >
-                            <h4>{task.title}</h4>
-                          </Link>
+                          <h4 className="font-medium text-secondary-900 hover:text-primary-600 transition-colors">
+                            {task.title}
+                          </h4>
                           <p className="text-sm text-secondary-600 mt-1">{task.description}</p>
                           <div className="flex items-center space-x-4 mt-2">
                             <Badge variant={getTaskStatusColor(task.status)}>
@@ -350,7 +348,7 @@ const ProjectDetail = () => {
                           {task.priority}
                         </Badge>
                       </div>
-                    </div>
+                    </Link>
                   ))}
                 </div>
               ) : (
@@ -386,47 +384,91 @@ const ProjectDetail = () => {
                 )}
               </div>
 
-              {project.team?.length > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {project.team.map((member) => (
-                    <div
-                      key={member._id}
-                      className="border border-secondary-200 rounded-lg p-4"
-                    >
-                      <div className="flex items-center">
-                        <Avatar
-                          src={member.avatar}
-                          name={member.name}
-                          size="md"
-                        />
-                        <div className="ml-3">
-                          <h4 className="font-medium text-secondary-900">{member.name}</h4>
-                          <p className="text-sm text-secondary-600">{member.email}</p>
-                          <Badge variant={member.role === 'admin' ? 'danger' : member.role === 'manager' ? 'warning' : 'primary'}>
-                            {member.role}
-                          </Badge>
-                        </div>
+              <div className="space-y-6">
+                {/* Project Manager */}
+                <div>
+                  <h4 className="text-md font-medium text-secondary-700 mb-3 flex items-center">
+                    <FaUserPlus className="mr-2" />
+                    Project Manager
+                  </h4>
+                  <div className="border border-secondary-200 rounded-lg p-4 bg-gradient-to-r from-primary-50 to-primary-100">
+                    <div className="flex items-center">
+                      <Avatar
+                        src={project.manager?.avatar}
+                        name={project.manager?.name}
+                        size="lg"
+                      />
+                      <div className="ml-4">
+                        <h4 className="font-semibold text-secondary-900">{project.manager?.name}</h4>
+                        <p className="text-sm text-secondary-600">{project.manager?.email}</p>
+                        <Badge variant="warning" className="mt-1">
+                          Manager
+                        </Badge>
                       </div>
                     </div>
-                  ))}
+                  </div>
                 </div>
-              ) : (
-                <div className="text-center py-8">
-                  <FaUsers className="mx-auto h-12 w-12 text-secondary-400 mb-4" />
-                  <h3 className="text-lg font-medium text-secondary-900 mb-2">No team members</h3>
-                  <p className="text-secondary-600 mb-4">
-                    Invite team members to collaborate on this project.
-                  </p>
-                  {(user?.role === 'admin' || project.manager._id === user?._id) && (
-                    <Button
-                      onClick={() => setShowInviteModal(true)}
-                      icon={<FaUserPlus />}
-                    >
-                      Invite First Member
-                    </Button>
-                  )}
-                </div>
-              )}
+
+                {/* Team Members */}
+                {project.team?.length > 0 && (
+                  <div>
+                    <h4 className="text-md font-medium text-secondary-700 mb-3 flex items-center">
+                      <FaUsers className="mr-2" />
+                      Team Members ({project.team.length})
+                    </h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {project.team.map((member) => (
+                        <div
+                          key={member._id || member.user?._id}
+                          className="border border-secondary-200 rounded-lg p-4 hover:shadow-sm transition-shadow"
+                        >
+                          <div className="flex items-center">
+                            <Avatar
+                              src={member.user?.avatar}
+                              name={member.user?.name}
+                              size="md"
+                            />
+                            <div className="ml-3">
+                              <h4 className="font-medium text-secondary-900">{member.user?.name}</h4>
+                              <p className="text-sm text-secondary-600">{member.user?.email}</p>
+                              <Badge variant={member.user?.role === 'admin' ? 'danger' : 'primary'} className="mt-1">
+                                {member.role || member.user?.role || 'Member'}
+                              </Badge>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* No Team Members Message */}
+                {(!project.team || project.team.length === 0) && (
+                  <div>
+                    <h4 className="text-md font-medium text-secondary-700 mb-3 flex items-center">
+                      <FaUsers className="mr-2" />
+                      Team Members
+                    </h4>
+                    <div className="text-center py-8 border border-secondary-200 rounded-lg">
+                      <FaUsers className="mx-auto h-12 w-12 text-secondary-400 mb-4" />
+                      <h3 className="text-lg font-medium text-secondary-900 mb-2">No team members yet</h3>
+                      <p className="text-secondary-600 mb-4">
+                        Invite team members to collaborate on this project.
+                      </p>
+                      {(user?.role === 'admin' || project.manager?._id === user?._id) && (
+                        <Button
+                          onClick={() => setShowInviteModal(true)}
+                          icon={<FaUserPlus />}
+                          className="bg-gradient-to-r from-success-600 to-success-700"
+                        >
+                          Invite Team Member
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+
             </div>
           )}
         </div>
@@ -460,6 +502,13 @@ const ProjectDetail = () => {
         onClose={() => setShowEditModal(false)}
         onSuccess={handleEditSuccess}
         project={project}
+      />
+
+      <InviteModal
+        isOpen={showInviteModal}
+        onClose={() => setShowInviteModal(false)}
+        onSuccess={refetch}
+        projectId={id}
       />
     </div>
   );

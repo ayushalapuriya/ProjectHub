@@ -61,9 +61,17 @@ const getTask = async (req, res) => {
       _id: req.params.id,
       isActive: { $ne: false }
     })
-      .populate('project', 'name status manager')
+      .populate({
+        path: 'project',
+        select: 'name status manager',
+        populate: {
+          path: 'manager',
+          select: 'name email avatar'
+        }
+      })
       .populate('assignee', 'name email avatar')
       .populate('reporter', 'name email avatar')
+      .populate('reviewer', 'name email avatar')
       .populate('comments.author', 'name email avatar')
       .populate('dependencies', 'title status');
 
@@ -175,6 +183,31 @@ const updateTask = async (req, res) => {
         success: false,
         message: 'Task not found'
       });
+    }
+
+    // Access control for progress updates
+    if (req.body.progress !== undefined) {
+      // Only assignee can update progress
+      if (!task.assignee || task.assignee.toString() !== req.user._id.toString()) {
+        return res.status(403).json({
+          success: false,
+          message: 'Only the assigned team member can update task progress'
+        });
+      }
+    }
+
+    // Access control for status changes
+    if (req.body.status !== undefined) {
+      // Assignee can change status, managers can review
+      const isAssignee = task.assignee && task.assignee.toString() === req.user._id.toString();
+      const isManager = req.user.role === 'admin' || req.user.role === 'manager';
+
+      if (!isAssignee && !isManager) {
+        return res.status(403).json({
+          success: false,
+          message: 'Not authorized to change task status'
+        });
+      }
     }
 
     const oldStatus = task.status;
@@ -319,11 +352,295 @@ const addComment = async (req, res) => {
   }
 };
 
+// @desc    Delete comment from task
+// @route   DELETE /api/tasks/:id/comments/:commentId
+// @access  Private
+const deleteComment = async (req, res) => {
+  try {
+    const task = await Task.findOne({
+      _id: req.params.id,
+      isActive: { $ne: false }
+    });
+
+    if (!task) {
+      return res.status(404).json({
+        success: false,
+        message: 'Task not found'
+      });
+    }
+
+    const comment = task.comments.id(req.params.commentId);
+    if (!comment) {
+      return res.status(404).json({
+        success: false,
+        message: 'Comment not found'
+      });
+    }
+
+    // Check if user can delete comment (author, admin, or project manager)
+    const isAuthor = comment.author.toString() === req.user._id.toString();
+    const isAdmin = req.user.role === 'admin';
+
+    // Get project to check if user is manager
+    const project = await Project.findById(task.project);
+    const isManager = project && project.manager.toString() === req.user._id.toString();
+
+    if (!isAuthor && !isAdmin && !isManager) {
+      return res.status(403).json({
+        success: false,
+        message: 'Not authorized to delete this comment'
+      });
+    }
+
+    // Remove comment
+    comment.remove();
+    await task.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Comment deleted successfully'
+    });
+  } catch (error) {
+    console.error('Delete comment error:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Server error'
+    });
+  }
+};
+
+// @desc    Review task (approve/reject)
+// @route   PUT /api/tasks/:id/review
+// @access  Private (Manager/Admin)
+const reviewTask = async (req, res) => {
+  try {
+    console.log('Review task request:', req.body, 'User:', req.user.name);
+    const { reviewStatus, reviewComments } = req.body;
+
+    const task = await Task.findOne({
+      _id: req.params.id,
+      isActive: { $ne: false }
+    }).populate('project', 'manager');
+
+    if (!task) {
+      return res.status(404).json({
+        success: false,
+        message: 'Task not found'
+      });
+    }
+
+    // Check if user is authorized to review (project manager or admin)
+    console.log('Access control check:');
+    console.log('User role:', req.user.role);
+    console.log('User ID:', req.user._id.toString());
+    console.log('Project manager:', task.project.manager);
+
+    // Handle both populated and non-populated manager field
+    let managerId;
+    if (task.project.manager) {
+      if (typeof task.project.manager === 'object' && task.project.manager._id) {
+        managerId = task.project.manager._id.toString();
+      } else {
+        managerId = task.project.manager.toString();
+      }
+    }
+
+    console.log('Manager ID:', managerId);
+    console.log('User is admin:', req.user.role === 'admin');
+    console.log('User is manager:', managerId === req.user._id.toString());
+
+    if (req.user.role !== 'admin' && managerId !== req.user._id.toString()) {
+      console.log('Access denied - user is not admin and not project manager');
+      return res.status(403).json({
+        success: false,
+        message: 'Not authorized to review this task'
+      });
+    }
+
+    console.log('Access granted - user can review this task');
+
+    // Check if task is in review status
+    if (task.status !== 'review') {
+      return res.status(400).json({
+        success: false,
+        message: 'Task is not in review status'
+      });
+    }
+
+    // Update review fields
+    task.reviewStatus = reviewStatus;
+    task.reviewComments = reviewComments;
+    task.reviewedAt = new Date();
+    task.reviewer = req.user._id;
+
+    // Update task status based on review
+    if (reviewStatus === 'approved') {
+      task.status = 'completed';
+      task.progress = 100;
+    } else if (reviewStatus === 'rejected') {
+      task.status = 'in-progress'; // Send back to in-progress
+    }
+
+    await task.save();
+
+    // Create notification for assignee
+    if (task.assignee) {
+      await Notification.createNotification({
+        title: `Task Review ${reviewStatus === 'approved' ? 'Approved' : 'Rejected'}`,
+        message: `Your task "${task.title}" has been ${reviewStatus} by ${req.user.name}${reviewComments ? ': ' + reviewComments : ''}`,
+        type: 'task_reviewed',
+        user: task.assignee,
+        relatedId: task._id,
+        relatedType: 'task',
+        priority: reviewStatus === 'approved' ? 'medium' : 'high'
+      });
+    }
+
+    // Populate the updated task
+    await task.populate([
+      { path: 'project', select: 'name status manager' },
+      { path: 'assignee', select: 'name email avatar' },
+      { path: 'reporter', select: 'name email avatar' },
+      { path: 'reviewer', select: 'name email avatar' }
+    ]);
+
+    res.status(200).json({
+      success: true,
+      data: task
+    });
+  } catch (error) {
+    console.error('Review task error:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Server error'
+    });
+  }
+};
+
+// @desc    Get tasks pending review for manager
+// @route   GET /api/tasks/pending-review
+// @access  Private (Manager/Admin)
+const getPendingReviewTasks = async (req, res) => {
+  try {
+    let query = {
+      status: 'review',
+      reviewStatus: 'pending',
+      isActive: { $ne: false }
+    };
+
+    // If user is not admin, only show tasks from their managed projects
+    if (req.user.role !== 'admin') {
+      const Project = require('../models/Project');
+      const managedProjects = await Project.find({ manager: req.user._id }).select('_id');
+      const projectIds = managedProjects.map(p => p._id);
+      query.project = { $in: projectIds };
+    }
+
+    const tasks = await Task.find(query)
+      .populate('project', 'name status manager')
+      .populate('assignee', 'name email avatar')
+      .populate('reporter', 'name email avatar')
+      .sort({ updatedAt: -1 });
+
+    res.status(200).json({
+      success: true,
+      count: tasks.length,
+      data: tasks
+    });
+  } catch (error) {
+    console.error('Get pending review tasks error:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Server error'
+    });
+  }
+};
+
+// @desc    Check user permissions for task
+// @route   GET /api/tasks/:id/permissions
+// @access  Private
+const checkTaskPermissions = async (req, res) => {
+  try {
+    const task = await Task.findOne({
+      _id: req.params.id,
+      isActive: { $ne: false }
+    }).populate({
+      path: 'project',
+      select: 'name status manager',
+      populate: {
+        path: 'manager',
+        select: 'name email avatar'
+      }
+    });
+
+    if (!task) {
+      return res.status(404).json({
+        success: false,
+        message: 'Task not found'
+      });
+    }
+
+    // Check permissions
+    const isAdmin = req.user.role === 'admin';
+    const isAssignee = task.assignee && task.assignee.toString() === req.user._id.toString();
+    const isReporter = task.reporter && task.reporter.toString() === req.user._id.toString();
+
+    let isManager = false;
+    if (task.project.manager) {
+      if (typeof task.project.manager === 'object' && task.project.manager._id) {
+        isManager = task.project.manager._id.toString() === req.user._id.toString();
+      } else {
+        isManager = task.project.manager.toString() === req.user._id.toString();
+      }
+    }
+
+    res.json({
+      success: true,
+      data: {
+        user: {
+          id: req.user._id,
+          name: req.user.name,
+          role: req.user.role
+        },
+        task: {
+          id: task._id,
+          title: task.title,
+          status: task.status
+        },
+        project: {
+          id: task.project._id,
+          name: task.project.name,
+          manager: task.project.manager
+        },
+        permissions: {
+          isAdmin,
+          isAssignee,
+          isReporter,
+          isManager,
+          canEdit: isAdmin || isAssignee || isReporter,
+          canUpdateProgress: isAdmin || isAssignee,
+          canReview: isAdmin || isManager
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Check permissions error:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Server error'
+    });
+  }
+};
+
 module.exports = {
   getTasks,
   getTask,
   createTask,
   updateTask,
   deleteTask,
-  addComment
+  addComment,
+  deleteComment,
+  reviewTask,
+  getPendingReviewTasks,
+  checkTaskPermissions
 };

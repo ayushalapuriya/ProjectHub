@@ -6,7 +6,11 @@ const {
   createTask,
   updateTask,
   deleteTask,
-  addComment
+  addComment,
+  deleteComment,
+  reviewTask,
+  getPendingReviewTasks,
+  checkTaskPermissions
 } = require('../controllers/taskController');
 const { protect } = require('../middleware/auth');
 
@@ -50,10 +54,24 @@ const commentValidation = [
     .withMessage('Comment must be between 1 and 500 characters')
 ];
 
+const reviewValidation = [
+  body('reviewStatus')
+    .isIn(['approved', 'rejected'])
+    .withMessage('Review status must be either approved or rejected'),
+  body('reviewComments')
+    .optional()
+    .trim()
+    .isLength({ max: 1000 })
+    .withMessage('Review comments cannot exceed 1000 characters')
+];
+
 // Routes
 router.route('/')
   .get(protect, getTasks)
   .post(protect, taskValidation, handleValidationErrors, createTask);
+
+router.route('/pending-review')
+  .get(protect, getPendingReviewTasks);
 
 router.route('/:id')
   .get(protect, getTask)
@@ -62,5 +80,14 @@ router.route('/:id')
 
 router.route('/:id/comments')
   .post(protect, commentValidation, handleValidationErrors, addComment);
+
+router.route('/:id/comments/:commentId')
+  .delete(protect, deleteComment);
+
+router.route('/:id/review')
+  .put(protect, reviewValidation, handleValidationErrors, reviewTask);
+
+router.route('/:id/permissions')
+  .get(protect, checkTaskPermissions);
 
 module.exports = router;

@@ -18,6 +18,7 @@ import Badge from '../components/common/Badge';
 import Avatar from '../components/common/Avatar';
 import Button from '../components/common/Button';
 import ActivityFeed from '../components/common/ActivityFeed';
+import PendingReviewTasks from '../components/dashboard/PendingReviewTasks';
 import api from '../services/api';
 
 const Dashboard = () => {
@@ -432,6 +433,24 @@ const Dashboard = () => {
             </div>
           )}
         </div>
+
+        {/* Pending Review Tasks (for managers) */}
+        {(user?.role === 'admin' || user?.role === 'manager') && (
+          <div className="bg-white rounded-xl shadow-sm border border-secondary-200">
+            <div className="p-6 border-b border-secondary-200">
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg font-semibold text-secondary-900 flex items-center">
+                  <FaExclamationTriangle className="mr-2 text-warning-500" />
+                  Pending Reviews
+                </h2>
+                <Link to="/tasks?status=review" className="text-primary-600 hover:text-primary-700 text-sm font-medium">
+                  View All
+                </Link>
+              </div>
+            </div>
+            <PendingReviewTasks />
+          </div>
+        )}
 
         {/* Activity Feed */}
         <div className="lg:col-span-2">

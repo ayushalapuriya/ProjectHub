@@ -94,6 +94,22 @@ const taskSchema = new mongoose.Schema({
     ref: 'User',
     required: true
   },
+  reviewer: {
+    type: mongoose.Schema.ObjectId,
+    ref: 'User'
+  },
+  reviewStatus: {
+    type: String,
+    enum: ['pending', 'approved', 'rejected'],
+    default: null
+  },
+  reviewComments: {
+    type: String,
+    maxlength: 1000
+  },
+  reviewedAt: {
+    type: Date
+  },
   dependencies: [{
     type: mongoose.Schema.ObjectId,
     ref: 'Task'
@@ -133,17 +149,39 @@ taskSchema.virtual('isOverdue').get(function() {
 });
 
 // Pre-save middleware
-taskSchema.pre('save', function(next) {
+taskSchema.pre('save', async function(next) {
   // Auto-complete when progress is 100%
   if (this.progress === 100 && this.status !== 'completed') {
     this.status = 'completed';
   }
-  
+
   // Update time tracking
   if (this.timeTracking.estimated && this.timeTracking.logged) {
     this.timeTracking.remaining = Math.max(0, this.timeTracking.estimated - this.timeTracking.logged);
   }
-  
+
+  // Review workflow logic
+  if (this.isModified('status')) {
+    if (this.status === 'review' && !this.reviewer) {
+      // Automatically assign project manager as reviewer
+      try {
+        const Project = mongoose.model('Project');
+        const project = await Project.findById(this.project);
+        if (project && project.manager) {
+          this.reviewer = project.manager;
+          this.reviewStatus = 'pending';
+        }
+      } catch (error) {
+        console.error('Error assigning reviewer:', error);
+      }
+    } else if (this.status !== 'review') {
+      // Clear review fields if status is not review
+      this.reviewStatus = null;
+      this.reviewComments = null;
+      this.reviewedAt = null;
+    }
+  }
+
   next();
 });
 

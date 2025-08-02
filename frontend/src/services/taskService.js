@@ -35,5 +35,23 @@ export const taskService = {
   addComment: async (id, comment) => {
     const response = await api.post(`/tasks/${id}/comments`, { text: comment });
     return response.data;
+  },
+
+  // Delete comment from task
+  deleteComment: async (taskId, commentId) => {
+    const response = await api.delete(`/tasks/${taskId}/comments/${commentId}`);
+    return response.data;
+  },
+
+  // Review task (approve/reject)
+  reviewTask: async (taskId, reviewData) => {
+    const response = await api.put(`/tasks/${taskId}/review`, reviewData);
+    return response.data;
+  },
+
+  // Get tasks pending review
+  getPendingReviewTasks: async () => {
+    const response = await api.get('/tasks/pending-review');
+    return response.data;
   }
 };

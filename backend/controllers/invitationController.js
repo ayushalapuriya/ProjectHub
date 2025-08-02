@@ -9,7 +9,7 @@ const emailService = require('../services/emailService');
 // @access  Private (Admin/Manager)
 const sendInvitation = async (req, res) => {
   try {
-    const { email, role, department, message } = req.body;
+    const { email, role, department, message, projectId } = req.body;
 
     // Check if user already exists
     const existingUser = await User.findOne({ email });
@@ -43,6 +43,7 @@ const sendInvitation = async (req, res) => {
       role: role || 'member',
       department,
       invitedBy: req.user._id,
+      project: projectId || null, // Include project if specified
       token,
       message
     });
@@ -192,6 +193,22 @@ const acceptInvitation = async (req, res) => {
     invitation.acceptedAt = new Date();
     invitation.acceptedBy = user._id;
     await invitation.save();
+
+    // If this is a project-specific invitation, add user to project team
+    if (invitation.project) {
+      const Project = require('../models/Project');
+      await Project.findByIdAndUpdate(
+        invitation.project,
+        {
+          $addToSet: {
+            team: {
+              user: user._id,
+              role: 'member'
+            }
+          }
+        }
+      );
+    }
 
     // Create notification for the inviter
     await Notification.createNotification({

@@ -30,8 +30,15 @@ const TaskDetail = () => {
   const { user } = useAuth();
   const [comment, setComment] = useState('');
   const [progress, setProgress] = useState(0);
+  const [showReviewModal, setShowReviewModal] = useState(false);
+  const [reviewData, setReviewData] = useState({
+    reviewStatus: '',
+    reviewComments: ''
+  });
   const { execute: executeComment, loading: commentLoading } = useAsyncOperation();
   const { execute: executeUpdate, loading: updateLoading } = useAsyncOperation();
+  const { execute: executeReview, loading: reviewLoading } = useAsyncOperation();
+  const { execute: executeDeleteComment, loading: deleteCommentLoading } = useAsyncOperation();
 
   const { data: taskData, loading, error, refetch } = useApi(
     () => taskService.getTask(id),
@@ -87,12 +94,46 @@ const TaskDetail = () => {
     if (!comment.trim()) return;
 
     try {
-      await executeComment(() => taskService.addComment(id, { text: comment }));
+      await executeComment(() => taskService.addComment(id, comment));
       setComment('');
       toast.success('Comment added successfully!');
       refetch();
     } catch (error) {
       toast.error('Failed to add comment');
+    }
+  };
+
+  const handleReview = async (reviewStatus) => {
+    try {
+      await executeReview(() => taskService.reviewTask(id, {
+        reviewStatus,
+        reviewComments: reviewData.reviewComments
+      }));
+      toast.success(`Task ${reviewStatus} successfully!`);
+      setShowReviewModal(false);
+      setReviewData({ reviewStatus: '', reviewComments: '' });
+      refetch();
+    } catch (error) {
+      toast.error(`Failed to ${reviewStatus} task`);
+    }
+  };
+
+  const openReviewModal = (status) => {
+    setReviewData({ ...reviewData, reviewStatus: status });
+    setShowReviewModal(true);
+  };
+
+  const handleDeleteComment = async (commentId) => {
+    if (!window.confirm('Are you sure you want to delete this comment?')) {
+      return;
+    }
+
+    try {
+      await executeDeleteComment(() => taskService.deleteComment(id, commentId));
+      toast.success('Comment deleted successfully!');
+      refetch();
+    } catch (error) {
+      toast.error('Failed to delete comment');
     }
   };
 
@@ -131,6 +172,8 @@ const TaskDetail = () => {
   }
 
   const canEdit = user?.role === 'admin' || task.assignee?._id === user?._id || task.reporter?._id === user?._id;
+  const canUpdateProgress = user?.role === 'admin' || task.assignee?._id === user?._id;
+  const canReview = user?.role === 'admin' || task.project?.manager?._id === user?._id;
 
   return (
     <div className="space-y-6">
@@ -325,7 +368,22 @@ const TaskDetail = () => {
                     <div className="bg-secondary-50 rounded-lg p-3">
                       <div className="flex items-center justify-between mb-2">
                         <span className="font-medium text-secondary-900">{comment.author?.name}</span>
-                        <span className="text-xs text-secondary-500">{formatRelativeTime(comment.createdAt)}</span>
+                        <div className="flex items-center space-x-2">
+                          <span className="text-xs text-secondary-500">{formatRelativeTime(comment.createdAt)}</span>
+                          {/* Delete button - only show to comment author, admin, or project manager */}
+                          {(user?._id === comment.author?._id ||
+                            user?.role === 'admin' ||
+                            task.project?.manager?._id === user?._id) && (
+                            <button
+                              onClick={() => handleDeleteComment(comment._id)}
+                              disabled={deleteCommentLoading}
+                              className="text-danger-500 hover:text-danger-700 text-xs p-1 rounded hover:bg-danger-50 transition-colors"
+                              title="Delete comment"
+                            >
+                              <FaTrash className="h-3 w-3" />
+                            </button>
+                          )}
+                        </div>
                       </div>
                       <p className="text-secondary-700">{comment.text}</p>
                     </div>
@@ -398,7 +456,7 @@ const TaskDetail = () => {
                 </div>
               </div>
 
-              {canEdit && (
+              {canUpdateProgress && (
                 <div>
                   <p className="text-sm text-secondary-600 mb-2">Update Progress</p>
                   <div className="flex items-center space-x-2">
@@ -422,6 +480,25 @@ const TaskDetail = () => {
                   >
                     Update Progress
                   </Button>
+                </div>
+              )}
+
+              {!canUpdateProgress && task.assignee && (
+                <div className="text-center py-4 bg-secondary-50 rounded-lg">
+                  <p className="text-sm text-secondary-600">
+                    Only the assigned team member can update progress
+                  </p>
+                  <div className="flex items-center justify-center mt-2">
+                    <Avatar
+                      src={task.assignee.avatar}
+                      name={task.assignee.name}
+                      size="xs"
+                      className="mr-2"
+                    />
+                    <span className="text-sm font-medium text-secondary-700">
+                      {task.assignee.name}
+                    </span>
+                  </div>
                 </div>
               )}
             </div>
@@ -470,21 +547,132 @@ const TaskDetail = () => {
                 )}
 
                 {task.status === 'review' && (
-                  <Button
-                    onClick={() => handleStatusChange('completed')}
-                    loading={updateLoading}
-                    icon={<FaCheck />}
-                    className="w-full bg-success-600 hover:bg-success-700"
-                    size="sm"
-                  >
-                    Approve & Complete
-                  </Button>
+                  <div className="space-y-2">
+                    {/* Show review info */}
+                    <div className="bg-warning-50 border border-warning-200 rounded-lg p-3">
+                      <div className="flex items-center mb-2">
+                        <FaExclamationTriangle className="text-warning-600 mr-2" />
+                        <span className="text-sm font-medium text-warning-800">
+                          Task is under review
+                        </span>
+                      </div>
+                      {task.reviewer && (
+                        <div className="flex items-center text-sm text-warning-700">
+                          <Avatar
+                            src={task.reviewer.avatar}
+                            name={task.reviewer.name}
+                            size="xs"
+                            className="mr-2"
+                          />
+                          Reviewer: {task.reviewer.name}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Review actions for managers */}
+                    {canReview && (
+                      <div className="flex space-x-2">
+                        <Button
+                          onClick={() => openReviewModal('approved')}
+                          loading={reviewLoading}
+                          icon={<FaCheck />}
+                          className="flex-1 bg-success-600 hover:bg-success-700"
+                          size="sm"
+                        >
+                          Approve
+                        </Button>
+                        <Button
+                          onClick={() => openReviewModal('rejected')}
+                          loading={reviewLoading}
+                          icon={<FaExclamationTriangle />}
+                          variant="outline"
+                          className="flex-1 border-danger-300 text-danger-600 hover:bg-danger-50"
+                          size="sm"
+                        >
+                          Reject
+                        </Button>
+                      </div>
+                    )}
+
+                    {/* Show review result if already reviewed */}
+                    {task.reviewStatus && (
+                      <div className={`border rounded-lg p-3 ${
+                        task.reviewStatus === 'approved'
+                          ? 'bg-success-50 border-success-200'
+                          : 'bg-danger-50 border-danger-200'
+                      }`}>
+                        <div className="flex items-center mb-2">
+                          <FaCheck className={`mr-2 ${
+                            task.reviewStatus === 'approved' ? 'text-success-600' : 'text-danger-600'
+                          }`} />
+                          <span className={`text-sm font-medium ${
+                            task.reviewStatus === 'approved' ? 'text-success-800' : 'text-danger-800'
+                          }`}>
+                            Task {task.reviewStatus}
+                          </span>
+                        </div>
+                        {task.reviewComments && (
+                          <p className={`text-sm ${
+                            task.reviewStatus === 'approved' ? 'text-success-700' : 'text-danger-700'
+                          }`}>
+                            {task.reviewComments}
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 )}
               </div>
             </div>
           )}
         </div>
       </div>
+
+      {/* Review Modal */}
+      {showReviewModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
+            <h3 className="text-lg font-semibold mb-4">
+              {reviewData.reviewStatus === 'approved' ? 'Approve Task' : 'Reject Task'}
+            </h3>
+
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Review Comments {reviewData.reviewStatus === 'rejected' ? '(Required)' : '(Optional)'}
+              </label>
+              <textarea
+                value={reviewData.reviewComments}
+                onChange={(e) => setReviewData({...reviewData, reviewComments: e.target.value})}
+                placeholder={`Add your ${reviewData.reviewStatus === 'approved' ? 'approval' : 'rejection'} comments...`}
+                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                rows="4"
+              />
+            </div>
+
+            <div className="flex space-x-3">
+              <Button
+                onClick={() => setShowReviewModal(false)}
+                variant="outline"
+                className="flex-1"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={() => handleReview(reviewData.reviewStatus)}
+                loading={reviewLoading}
+                className={`flex-1 ${
+                  reviewData.reviewStatus === 'approved'
+                    ? 'bg-success-600 hover:bg-success-700'
+                    : 'bg-danger-600 hover:bg-danger-700'
+                }`}
+                disabled={reviewData.reviewStatus === 'rejected' && !reviewData.reviewComments.trim()}
+              >
+                {reviewData.reviewStatus === 'approved' ? 'Approve' : 'Reject'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

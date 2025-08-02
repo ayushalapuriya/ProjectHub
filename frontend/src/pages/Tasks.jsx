@@ -94,6 +94,9 @@ const Tasks = () => {
         const completedDate = new Date(task.updatedAt);
         return completedDate >= today && completedDate < tomorrow;
       });
+    } else if (urlStatus === 'review') {
+      // Filter for tasks in review status
+      tasks = tasks.filter(task => task.status === 'review');
     }
 
     return tasks;
@@ -176,6 +179,13 @@ const Tasks = () => {
                 <div className="mt-2 inline-flex items-center px-3 py-1 rounded-full text-sm bg-success-100 text-success-800">
                   <FaCheckCircle className="mr-1 h-3 w-3" />
                   Showing Completed Tasks
+                </div>
+              );
+            } else if (urlStatus === 'review') {
+              return (
+                <div className="mt-2 inline-flex items-center px-3 py-1 rounded-full text-sm bg-warning-100 text-warning-800">
+                  <FaExclamationTriangle className="mr-1 h-3 w-3" />
+                  Showing Tasks Under Review
                 </div>
               );
             }
