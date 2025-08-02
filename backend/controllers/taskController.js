@@ -414,7 +414,12 @@ const deleteComment = async (req, res) => {
 // @access  Private (Manager/Admin)
 const reviewTask = async (req, res) => {
   try {
-    console.log('Review task request:', req.body, 'User:', req.user.name);
+    console.log('Review task request received:');
+    console.log('Request body:', JSON.stringify(req.body, null, 2));
+    console.log('User:', req.user.name);
+    console.log('reviewStatus type:', typeof req.body.reviewStatus);
+    console.log('reviewStatus value:', req.body.reviewStatus);
+
     const { reviewStatus, reviewComments } = req.body;
 
     const task = await Task.findOne({
@@ -436,8 +441,8 @@ const reviewTask = async (req, res) => {
     console.log('Project manager:', task.project.manager);
 
     // Handle both populated and non-populated manager field
-    let managerId;
-    if (task.project.manager) {
+    let managerId = null;
+    if (task.project && task.project.manager) {
       if (typeof task.project.manager === 'object' && task.project.manager._id) {
         managerId = task.project.manager._id.toString();
       } else {
@@ -449,7 +454,7 @@ const reviewTask = async (req, res) => {
     console.log('User is admin:', req.user.role === 'admin');
     console.log('User is manager:', managerId === req.user._id.toString());
 
-    if (req.user.role !== 'admin' && managerId !== req.user._id.toString()) {
+    if (req.user.role !== 'admin' && (!managerId || managerId !== req.user._id.toString())) {
       console.log('Access denied - user is not admin and not project manager');
       return res.status(403).json({
         success: false,
@@ -481,19 +486,26 @@ const reviewTask = async (req, res) => {
       task.status = 'in-progress'; // Send back to in-progress
     }
 
+    console.log('Saving task with review data...');
     await task.save();
+    console.log('Task saved successfully');
 
     // Create notification for assignee
     if (task.assignee) {
-      await Notification.createNotification({
-        title: `Task Review ${reviewStatus === 'approved' ? 'Approved' : 'Rejected'}`,
-        message: `Your task "${task.title}" has been ${reviewStatus} by ${req.user.name}${reviewComments ? ': ' + reviewComments : ''}`,
-        type: 'task_reviewed',
-        user: task.assignee,
-        relatedId: task._id,
-        relatedType: 'task',
-        priority: reviewStatus === 'approved' ? 'medium' : 'high'
-      });
+      try {
+        await Notification.createNotification({
+          title: `Task Review ${reviewStatus === 'approved' ? 'Approved' : 'Rejected'}`,
+          message: `Your task "${task.title}" has been ${reviewStatus} by ${req.user.name}${reviewComments ? ': ' + reviewComments : ''}`,
+          type: 'task_reviewed',
+          user: task.assignee,
+          relatedId: task._id,
+          relatedType: 'task',
+          priority: reviewStatus === 'approved' ? 'medium' : 'high'
+        });
+      } catch (notificationError) {
+        console.error('Failed to create notification:', notificationError);
+        // Don't fail the whole request if notification fails
+      }
     }
 
     // Populate the updated task
