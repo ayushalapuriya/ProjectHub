@@ -24,7 +24,7 @@ const handleValidationErrors = (req, res, next) => {
 
 const router = express.Router();
 
-// Validation middleware
+// Validation middleware for creating projects
 const projectValidation = [
   body('name')
     .trim()
@@ -56,6 +56,50 @@ const projectValidation = [
     })
 ];
 
+// Validation middleware for updating projects (more flexible)
+const projectUpdateValidation = [
+  body('name')
+    .optional()
+    .trim()
+    .isLength({ min: 2, max: 100 })
+    .withMessage('Project name must be between 2 and 100 characters'),
+  body('description')
+    .optional()
+    .trim()
+    .isLength({ min: 5, max: 1000 })
+    .withMessage('Description must be between 5 and 1000 characters'),
+  body('startDate')
+    .optional()
+    .custom((value) => {
+      if (value && value.trim() !== '') {
+        const date = new Date(value);
+        if (isNaN(date.getTime())) {
+          throw new Error('Please provide a valid start date');
+        }
+      }
+      return true;
+    }),
+  body('endDate')
+    .optional()
+    .custom((value) => {
+      if (value && value.trim() !== '') {
+        const date = new Date(value);
+        if (isNaN(date.getTime())) {
+          throw new Error('Please provide a valid end date');
+        }
+      }
+      return true;
+    }),
+  body('priority')
+    .optional()
+    .isIn(['low', 'medium', 'high', 'critical'])
+    .withMessage('Priority must be low, medium, high, or critical'),
+  body('status')
+    .optional()
+    .isIn(['planning', 'active', 'on-hold', 'completed', 'cancelled'])
+    .withMessage('Status must be planning, active, on-hold, completed, or cancelled')
+];
+
 // Routes
 router.route('/')
   .get(protect, getProjects)
@@ -63,7 +107,7 @@ router.route('/')
 
 router.route('/:id')
   .get(protect, getProject)
-  .put(protect, authorize('admin', 'manager'), updateProject)
+  .put(protect, authorize('admin', 'manager'), projectUpdateValidation, handleValidationErrors, updateProject)
   .delete(protect, authorize('admin', 'manager'), deleteProject);
 
 module.exports = router;

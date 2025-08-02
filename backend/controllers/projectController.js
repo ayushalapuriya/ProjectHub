@@ -11,7 +11,7 @@ const getProjects = async (req, res) => {
     const { search, status, priority, page = 1, limit = 10 } = req.query;
 
     // Build query
-    let query = {};
+    let query = { isActive: { $ne: false } }; // Only get active projects
 
     if (search) {
       query.$or = [
@@ -70,7 +70,10 @@ const getProjects = async (req, res) => {
 // @access  Private
 const getProject = async (req, res) => {
   try {
-    const project = await Project.findById(req.params.id)
+    const project = await Project.findOne({
+      _id: req.params.id,
+      isActive: { $ne: false }
+    })
       .populate('manager', 'name email avatar')
       .populate('team.user', 'name email avatar role department');
 
@@ -81,8 +84,11 @@ const getProject = async (req, res) => {
       });
     }
 
-    // Get project tasks
-    const tasks = await Task.find({ project: project._id })
+    // Get project tasks (only active tasks)
+    const tasks = await Task.find({
+      project: project._id,
+      isActive: { $ne: false }
+    })
       .populate('assignee', 'name email avatar')
       .populate('reporter', 'name email avatar')
       .sort({ createdAt: -1 });
@@ -220,10 +226,34 @@ const updateProject = async (req, res) => {
       });
     }
 
+    // Prepare update data
+    const updateData = { ...req.body };
+
+    // Remove empty string dates to avoid validation errors
+    if (updateData.startDate === '') {
+      delete updateData.startDate;
+    }
+    if (updateData.endDate === '') {
+      delete updateData.endDate;
+    }
+
+    // Validate date order if both dates are provided
+    if (updateData.startDate && updateData.endDate) {
+      const start = new Date(updateData.startDate);
+      const end = new Date(updateData.endDate);
+
+      if (start >= end) {
+        return res.status(400).json({
+          success: false,
+          message: 'End date must be after start date'
+        });
+      }
+    }
+
     // Update project
     project = await Project.findByIdAndUpdate(
       req.params.id,
-      req.body,
+      updateData,
       { new: true, runValidators: true }
     ).populate('manager', 'name email avatar')
      .populate('team.user', 'name email avatar');

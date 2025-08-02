@@ -7,10 +7,10 @@ import { useApi, useAsyncOperation } from '../../hooks/useApi';
 import Button from '../common/Button';
 import Modal from '../common/Modal';
 
-const CreateTaskModal = ({ isOpen, onClose, projectId, onSuccess }) => {
+const CreateTaskModal = ({ isOpen, onClose, projectId, project, onSuccess }) => {
   const { execute, loading } = useAsyncOperation();
   const { data: usersData } = useApi(() => userService.getUsers(), []);
-  
+
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -25,7 +25,15 @@ const CreateTaskModal = ({ isOpen, onClose, projectId, onSuccess }) => {
   });
 
   const [errors, setErrors] = useState({});
-  const users = usersData?.data || [];
+  const allUsers = usersData?.data || [];
+
+  // Filter users to show only project team members and manager
+  const users = project ? [
+    project.manager,
+    ...(project.team?.map(member => member.user) || [])
+  ].filter((user, index, self) =>
+    user && self.findIndex(u => u._id === user._id) === index // Remove duplicates
+  ) : allUsers;
 
   const handleChange = (e) => {
     const { name, value } = e.target;

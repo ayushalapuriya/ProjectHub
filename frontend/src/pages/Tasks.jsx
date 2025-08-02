@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Link, useLocation } from 'react-router-dom';
 import {
   FaPlus,
   FaSearch,
@@ -25,12 +25,37 @@ import CreateTaskModal from '../components/tasks/CreateTaskModal';
 
 const Tasks = () => {
   const { user } = useAuth();
+  const location = useLocation();
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [priorityFilter, setPriorityFilter] = useState('');
   const [projectFilter, setProjectFilter] = useState('');
   const [assigneeFilter, setAssigneeFilter] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
+
+  // Parse URL parameters on component mount
+  useEffect(() => {
+    const searchParams = new URLSearchParams(location.search);
+    const status = searchParams.get('status');
+    const priority = searchParams.get('priority');
+    const project = searchParams.get('project');
+    const assignee = searchParams.get('assignee');
+    const search = searchParams.get('search');
+
+    if (status) {
+      // Handle special status filters
+      if (status === 'overdue') {
+        // For overdue tasks, we'll filter on the frontend since backend doesn't have overdue status
+        setStatusFilter('');
+      } else {
+        setStatusFilter(status);
+      }
+    }
+    if (priority) setPriorityFilter(priority);
+    if (project) setProjectFilter(project);
+    if (assignee) setAssigneeFilter(assignee);
+    if (search) setSearchQuery(search);
+  }, [location.search]);
 
   const { data: tasksData, loading, error, refetch } = useApi(
     () => taskService.getTasks({
@@ -42,6 +67,37 @@ const Tasks = () => {
     }),
     [searchQuery, statusFilter, priorityFilter, projectFilter, assigneeFilter]
   );
+
+  // Apply frontend filtering for special cases
+  const filteredTasks = useMemo(() => {
+    const searchParams = new URLSearchParams(location.search);
+    const urlStatus = searchParams.get('status');
+    let tasks = tasksData?.data || [];
+
+    if (urlStatus === 'overdue') {
+      // Filter for overdue tasks
+      tasks = tasks.filter(task =>
+        task.dueDate &&
+        isOverdue(task.dueDate) &&
+        task.status !== 'completed'
+      );
+    } else if (urlStatus === 'completed') {
+      // Filter for tasks completed today
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+
+      tasks = tasks.filter(task => {
+        if (task.status !== 'completed') return false;
+
+        const completedDate = new Date(task.updatedAt);
+        return completedDate >= today && completedDate < tomorrow;
+      });
+    }
+
+    return tasks;
+  }, [tasksData, location.search]);
 
   const getStatusColor = (status) => {
     switch (status) {
@@ -89,7 +145,7 @@ const Tasks = () => {
     );
   }
 
-  const tasks = tasksData?.data || [];
+  const tasks = filteredTasks;
 
   return (
     <div className="space-y-6">
@@ -105,8 +161,43 @@ const Tasks = () => {
               : 'View and update your assigned tasks'
             }
           </p>
+          {(() => {
+            const searchParams = new URLSearchParams(location.search);
+            const urlStatus = searchParams.get('status');
+            if (urlStatus === 'overdue') {
+              return (
+                <div className="mt-2 inline-flex items-center px-3 py-1 rounded-full text-sm bg-danger-100 text-danger-800">
+                  <FaExclamationTriangle className="mr-1 h-3 w-3" />
+                  Showing Overdue Tasks
+                </div>
+              );
+            } else if (urlStatus === 'completed') {
+              return (
+                <div className="mt-2 inline-flex items-center px-3 py-1 rounded-full text-sm bg-success-100 text-success-800">
+                  <FaCheckCircle className="mr-1 h-3 w-3" />
+                  Showing Completed Tasks
+                </div>
+              );
+            }
+            return null;
+          })()}
         </div>
-        <div className="mt-4 sm:mt-0">
+        <div className="mt-4 sm:mt-0 flex items-center space-x-3">
+          {(() => {
+            const searchParams = new URLSearchParams(location.search);
+            const hasUrlFilters = searchParams.get('status') || searchParams.get('priority') ||
+                                 searchParams.get('project') || searchParams.get('assignee');
+            if (hasUrlFilters) {
+              return (
+                <Link to="/tasks">
+                  <Button variant="outline">
+                    Clear Filter
+                  </Button>
+                </Link>
+              );
+            }
+            return null;
+          })()}
           <Button
             icon={<FaPlus />}
             onClick={() => setShowCreateModal(true)}

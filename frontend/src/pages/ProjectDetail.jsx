@@ -1,19 +1,18 @@
 import React, { useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
+import { toast } from 'react-toastify';
 import {
   FaArrowLeft,
   FaEdit,
   FaTrash,
   FaPlus,
   FaUsers,
-  FaCalendarAlt,
-  FaClock,
   FaTasks,
   FaProjectDiagram,
   FaChartLine,
   FaUserPlus
 } from 'react-icons/fa';
-import { useApi } from '../hooks/useApi';
+import { useApi, useAsyncOperation } from '../hooks/useApi';
 import { projectService } from '../services/projectService';
 import { taskService } from '../services/taskService';
 import { useAuth } from '../context/AuthContext';
@@ -24,13 +23,17 @@ import Badge from '../components/common/Badge';
 import Avatar from '../components/common/Avatar';
 import CreateTaskModal from '../components/tasks/CreateTaskModal';
 import InviteModal from '../components/team/InviteModal';
+import EditProjectModal from '../components/projects/EditProjectModal';
 
 const ProjectDetail = () => {
   const { id } = useParams();
+  const navigate = useNavigate();
   const { user } = useAuth();
   const [showCreateTaskModal, setShowCreateTaskModal] = useState(false);
   const [showInviteModal, setShowInviteModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
   const [activeTab, setActiveTab] = useState('overview');
+  const { execute: executeDelete, loading: deleteLoading } = useAsyncOperation();
 
   const { data: projectData, loading, error, refetch } = useApi(()=>{
 
@@ -74,6 +77,29 @@ const ProjectDetail = () => {
       case 'completed': return 'success';
       default: return 'secondary';
     }
+  };
+
+  const handleEditProject = () => {
+    setShowEditModal(true);
+  };
+
+  const handleDeleteProject = async () => {
+    if (!window.confirm('Are you sure you want to delete this project? This action cannot be undone and will also delete all associated tasks.')) {
+      return;
+    }
+
+    try {
+      await executeDelete(() => projectService.deleteProject(project._id));
+      toast.success('Project deleted successfully');
+      navigate('/projects');
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to delete project');
+    }
+  };
+
+  const handleEditSuccess = () => {
+    setShowEditModal(false);
+    refetch();
   };
 
   if (loading) {
@@ -134,6 +160,7 @@ const ProjectDetail = () => {
             <Button
               variant="outline"
               icon={<FaEdit />}
+              onClick={handleEditProject}
             >
               Edit Project
             </Button>
@@ -141,6 +168,8 @@ const ProjectDetail = () => {
               variant="outline"
               className="text-danger-600 border-danger-300 hover:bg-danger-50"
               icon={<FaTrash />}
+              onClick={handleDeleteProject}
+              loading={deleteLoading}
             >
               Delete
             </Button>
@@ -289,7 +318,12 @@ const ProjectDetail = () => {
                     >
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
-                          <h4 className="font-medium text-secondary-900">{task.title}</h4>
+                          <Link
+                            to={`/tasks/${task._id}`}
+                            className="font-medium text-secondary-900 hover:text-primary-600 transition-colors"
+                          >
+                            <h4>{task.title}</h4>
+                          </Link>
                           <p className="text-sm text-secondary-600 mt-1">{task.description}</p>
                           <div className="flex items-center space-x-4 mt-2">
                             <Badge variant={getTaskStatusColor(task.status)}>
@@ -403,6 +437,7 @@ const ProjectDetail = () => {
         isOpen={showCreateTaskModal}
         onClose={() => setShowCreateTaskModal(false)}
         projectId={project._id}
+        project={project}
         onSuccess={() => {
           setShowCreateTaskModal(false);
           refetch();
@@ -417,6 +452,14 @@ const ProjectDetail = () => {
           setShowInviteModal(false);
           refetch();
         }}
+      />
+
+      {/* Edit Project Modal */}
+      <EditProjectModal
+        isOpen={showEditModal}
+        onClose={() => setShowEditModal(false)}
+        onSuccess={handleEditSuccess}
+        project={project}
       />
     </div>
   );

@@ -57,7 +57,10 @@ const getTasks = async (req, res) => {
 // @access  Private
 const getTask = async (req, res) => {
   try {
-    const task = await Task.findById(req.params.id)
+    const task = await Task.findOne({
+      _id: req.params.id,
+      isActive: { $ne: false }
+    })
       .populate('project', 'name status manager')
       .populate('assignee', 'name email avatar')
       .populate('reporter', 'name email avatar')
@@ -162,7 +165,10 @@ const createTask = async (req, res) => {
 // @access  Private
 const updateTask = async (req, res) => {
   try {
-    let task = await Task.findById(req.params.id);
+    let task = await Task.findOne({
+      _id: req.params.id,
+      isActive: { $ne: false }
+    });
 
     if (!task) {
       return res.status(404).json({
@@ -227,7 +233,10 @@ const updateTask = async (req, res) => {
 // @access  Private
 const deleteTask = async (req, res) => {
   try {
-    const task = await Task.findById(req.params.id);
+    const task = await Task.findOne({
+      _id: req.params.id,
+      isActive: { $ne: false }
+    });
 
     if (!task) {
       return res.status(404).json({
@@ -259,7 +268,10 @@ const deleteTask = async (req, res) => {
 const addComment = async (req, res) => {
   try {
     const { text } = req.body;
-    const task = await Task.findById(req.params.id);
+    const task = await Task.findOne({
+      _id: req.params.id,
+      isActive: { $ne: false }
+    });
 
     if (!task) {
       return res.status(404).json({

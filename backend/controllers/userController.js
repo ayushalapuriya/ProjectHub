@@ -151,14 +151,15 @@ const getDashboard = async (req, res) => {
     const Task = require('../models/Task');
 
     // Get projects based on user role
-    let projectQuery = {};
+    let projectQuery = { isActive: { $ne: false } }; // Only get active projects
 
     if (req.user.role === 'admin') {
-      // Admins can see all projects
-      projectQuery = {};
+      // Admins can see all active projects
+      projectQuery = { isActive: { $ne: false } };
     } else {
-      // Managers and members see only their assigned projects
+      // Managers and members see only their assigned active projects
       projectQuery = {
+        isActive: { $ne: false },
         $or: [
           { manager: userId },
           { 'team.user': userId }
@@ -189,24 +190,48 @@ const getDashboard = async (req, res) => {
     }
 
     const tasks = await Task.find(taskQuery)
-      .populate('project', 'name status')
+      .populate({
+        path: 'project',
+        select: 'name status',
+        match: { isActive: { $ne: false } }
+      })
       .populate('assignee', 'name email avatar')
       .sort({ dueDate: 1 })
       .limit(10);
 
-    // Calculate task statistics
-    const allUserTasks = await Task.find(taskQuery);
+    // Filter out tasks from deleted projects
+    const filteredTasks = tasks.filter(task => task.project);
+
+    // Calculate task statistics - only include tasks from active projects
+    const allUserTasks = await Task.find(taskQuery)
+      .populate({
+        path: 'project',
+        select: 'name status',
+        match: { isActive: { $ne: false } }
+      });
+
+    const activeProjectTasks = allUserTasks.filter(task => task.project);
+
+    // Calculate date range for "today"
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
 
     const taskStats = {
-      total: allUserTasks.length,
-      todo: allUserTasks.filter(t => t.status === 'todo').length,
-      inProgress: allUserTasks.filter(t => t.status === 'in-progress').length,
-      review: allUserTasks.filter(t => t.status === 'review').length,
-      completed: allUserTasks.filter(t => t.status === 'completed').length,
-      overdue: allUserTasks.filter(t => t.dueDate < new Date() && t.status !== 'completed').length
+      total: activeProjectTasks.length,
+      todo: activeProjectTasks.filter(t => t.status === 'todo').length,
+      inProgress: activeProjectTasks.filter(t => t.status === 'in-progress').length,
+      review: activeProjectTasks.filter(t => t.status === 'review').length,
+      completed: activeProjectTasks.filter(t => {
+        if (t.status !== 'completed') return false;
+        const completedDate = new Date(t.updatedAt);
+        return completedDate >= today && completedDate < tomorrow;
+      }).length,
+      overdue: activeProjectTasks.filter(t => t.dueDate < new Date() && t.status !== 'completed').length
     };
 
-    // Calculate project statistics
+    // Calculate project statistics (using the same query that excludes inactive projects)
     const allUserProjects = await Project.find(projectQuery);
 
     const projectStats = {
@@ -226,18 +251,25 @@ const getDashboard = async (req, res) => {
       dueDate: { $gte: new Date(), $lte: nextWeek },
       status: { $ne: 'completed' }
     })
-    .populate('project', 'name')
+    .populate({
+      path: 'project',
+      select: 'name',
+      match: { isActive: { $ne: false } }
+    })
     .sort({ dueDate: 1 })
     .limit(5);
+
+    // Filter out deadlines from deleted projects
+    const filteredUpcomingDeadlines = upcomingDeadlines.filter(task => task.project);
 
     res.json({
       success: true,
       data: {
         projects,
-        tasks,
+        tasks: filteredTasks,
         taskStats,
         projectStats,
-        upcomingDeadlines
+        upcomingDeadlines: filteredUpcomingDeadlines
       }
     });
   } catch (error) {

@@ -106,13 +106,21 @@ projectSchema.virtual('taskCount', {
   count: true
 });
 
-// Calculate progress based on tasks
+// Calculate progress based on tasks and project status
 projectSchema.methods.calculateProgress = async function() {
+  // If project is completed, progress is always 100%
+  if (this.status === 'completed') return 100;
+
+  // If project is on-hold or cancelled, don't calculate progress from tasks
+  if (this.status === 'on-hold' || this.status === 'cancelled') {
+    return this.progress; // Keep current progress, don't auto-calculate
+  }
+
   const Task = mongoose.model('Task');
-  const tasks = await Task.find({ project: this._id });
-  
+  const tasks = await Task.find({ project: this._id, isActive: { $ne: false } });
+
   if (tasks.length === 0) return 0;
-  
+
   const totalProgress = tasks.reduce((sum, task) => sum + task.progress, 0);
   return Math.round(totalProgress / tasks.length);
 };
