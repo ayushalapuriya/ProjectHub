@@ -32,7 +32,7 @@ const CreateTaskModal = ({ isOpen, onClose, projectId, project, onSuccess }) => 
     project.manager,
     ...(project.team?.map(member => member.user) || [])
   ].filter((user, index, self) =>
-    user && self.findIndex(u => u._id === user._id) === index // Remove duplicates
+    user && user._id && self.findIndex(u => u && u._id === user._id) === index // Remove duplicates and null values
   ) : allUsers;
 
   const handleChange = (e) => {

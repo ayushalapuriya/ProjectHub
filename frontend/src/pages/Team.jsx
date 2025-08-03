@@ -167,7 +167,7 @@ const Team = () => {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {users.map((member) => (
+          {users.filter(member => member && member._id).map((member) => (
             <div
               key={member._id}
               className="bg-white rounded-xl shadow-sm border border-secondary-200 hover:shadow-md transition-shadow duration-200"

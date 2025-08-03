@@ -196,7 +196,7 @@ const Tasks = () => {
           {(() => {
             const searchParams = new URLSearchParams(location.search);
             const hasUrlFilters = searchParams.get('status') || searchParams.get('priority') ||
-                                 searchParams.get('project') || searchParams.get('assignee');
+            searchParams.get('project') || searchParams.get('assignee');
             if (hasUrlFilters) {
               return (
                 <Link to="/tasks">
@@ -292,7 +292,7 @@ const Tasks = () => {
         </div>
       ) : (
         <div className="space-y-4">
-          {tasks.map((task) => (
+          {tasks.filter(task => task && task._id).map((task) => (
             <div
               key={task._id}
               className="bg-white rounded-xl shadow-sm border border-secondary-200 hover:shadow-md transition-shadow duration-200"

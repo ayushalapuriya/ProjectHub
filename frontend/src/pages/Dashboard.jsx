@@ -219,7 +219,7 @@ const Dashboard = () => {
           <div className="card-body">
             {projects && projects.length > 0 ? (
               <div className="space-y-4">
-                {projects.map((project) => (
+                {projects.filter(project => project && project._id).map((project) => (
                   <Link
                     key={project._id}
                     to={`/projects/${project._id}`}
@@ -279,7 +279,7 @@ const Dashboard = () => {
           <div className="card-body">
             {upcomingDeadlines && upcomingDeadlines.length > 0 ? (
               <div className="space-y-4">
-                {upcomingDeadlines.map((task) => (
+                {upcomingDeadlines.filter(task => task && task._id).map((task) => (
                   <Link
                     key={task._id}
                     to={`/tasks/${task._id}`}
@@ -363,7 +363,7 @@ const Dashboard = () => {
                   </tr>
                 </thead>
                 <tbody className="table-body">
-                  {tasks.map((task) => (
+                  {tasks.filter(task => task && task._id).map((task) => (
                     <tr key={task._id}>
                       <td className="table-cell">
                         <Link

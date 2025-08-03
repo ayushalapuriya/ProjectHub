@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import {
   FaArrowLeft,
@@ -27,6 +27,7 @@ import Avatar from '../components/common/Avatar';
 
 const TaskDetail = () => {
   const { id } = useParams();
+  const navigate = useNavigate();
   const { user } = useAuth();
   const [comment, setComment] = useState('');
   const [progress, setProgress] = useState(0);
@@ -137,6 +138,25 @@ const TaskDetail = () => {
     }
   };
 
+  const handleEditTask = () => {
+    // Navigate to edit task page or open edit modal
+    navigate(`/tasks/${id}/edit`);
+  };
+
+  const handleDeleteTask = async () => {
+    if (!window.confirm('Are you sure you want to delete this task? This action cannot be undone.')) {
+      return;
+    }
+
+    try {
+      await executeUpdate(() => taskService.deleteTask(id));
+      toast.success('Task deleted successfully!');
+      navigate('/tasks');
+    } catch (error) {
+      toast.error('Failed to delete task');
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
@@ -196,6 +216,7 @@ const TaskDetail = () => {
             <Button
               variant="outline"
               icon={<FaEdit />}
+              onClick={handleEditTask}
             >
               Edit Task
             </Button>
@@ -203,6 +224,8 @@ const TaskDetail = () => {
               variant="outline"
               className="text-danger-600 border-danger-300 hover:bg-danger-50"
               icon={<FaTrash />}
+              onClick={handleDeleteTask}
+              loading={updateLoading}
             >
               Delete
             </Button>

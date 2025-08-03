@@ -32,15 +32,18 @@ const getTasks = async (req, res) => {
       .limit(limit * 1)
       .skip((page - 1) * limit);
 
+    // Filter out tasks with null projects or assignees
+    const filteredTasks = tasks.filter(task => task && task._id);
+
     const total = await Task.countDocuments(query);
 
     res.json({
       success: true,
-      count: tasks.length,
+      count: filteredTasks.length,
       total,
       page: parseInt(page),
       pages: Math.ceil(total / limit),
-      data: tasks
+      data: filteredTasks
     });
   } catch (error) {
     console.error('Get tasks error:', error);
@@ -100,6 +103,10 @@ const getTask = async (req, res) => {
 // @access  Private
 const createTask = async (req, res) => {
   try {
+    console.log('Create task request received:');
+    console.log('Request body:', JSON.stringify(req.body, null, 2));
+    console.log('User creating task:', req.user.name, req.user.role);
+
     const {
       title,
       description,
@@ -266,21 +273,47 @@ const updateTask = async (req, res) => {
 // @access  Private
 const deleteTask = async (req, res) => {
   try {
+    console.log('Delete task request for ID:', req.params.id);
+    console.log('User requesting deletion:', req.user.name, req.user.role);
+
     const task = await Task.findOne({
       _id: req.params.id,
       isActive: { $ne: false }
-    });
+    })
+      .populate('assignee', 'name email')
+      .populate('reporter', 'name email')
+      .populate('project', 'name');
 
     if (!task) {
+      console.log('Task not found with ID:', req.params.id);
       return res.status(404).json({
         success: false,
         message: 'Task not found'
       });
     }
 
+    console.log('Task found:', task.title, 'Current isActive:', task.isActive);
+
+    // Check if user is authorized to delete (assignee, reporter, or admin)
+    const isAuthorized = req.user.role === 'admin' ||
+                        task.assignee?.toString() === req.user._id.toString() ||
+                        task.reporter?.toString() === req.user._id.toString();
+
+    if (!isAuthorized) {
+      console.log('User not authorized to delete task');
+      return res.status(403).json({
+        success: false,
+        message: 'Not authorized to delete this task'
+      });
+    }
+
+    console.log('User authorized to delete task');
+
     // Soft delete - mark as inactive
     task.isActive = false;
     await task.save();
+
+    console.log('Task successfully marked as inactive');
 
     res.json({
       success: true,

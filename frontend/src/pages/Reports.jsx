@@ -385,7 +385,7 @@ const Reports = () => {
             <div>
               <h3 className="text-lg font-semibold text-secondary-900 mb-4">Team Analytics</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {users.map((member) => {
+                {users.filter(member => member && member._id).map((member) => {
                   const memberTasks = tasks.filter(t => t.assignee?._id === member._id);
                   const completedTasks = memberTasks.filter(t => t.status === 'completed');
 

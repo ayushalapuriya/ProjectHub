@@ -16,6 +16,7 @@ import Projects from './pages/Projects';
 import ProjectDetail from './pages/ProjectDetail';
 import Tasks from './pages/Tasks';
 import TaskDetail from './pages/TaskDetail';
+import EditTask from './pages/EditTask';
 import Team from './pages/Team';
 import Reports from './pages/Reports';
 import Notifications from './pages/Notifications';
@@ -44,6 +45,7 @@ function App() {
                 <Route path="projects/:id" element={<ProjectDetail />} />
                 <Route path="tasks" element={<Tasks />} />
                 <Route path="tasks/:id" element={<TaskDetail />} />
+                <Route path="tasks/:id/edit" element={<EditTask />} />
                 <Route path="team" element={<Team />} />
                 <Route path="invitations" element={<Invitations />} />
                 <Route path="reports" element={<Reports />} />

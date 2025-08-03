@@ -280,28 +280,69 @@ const CreateProjectModal = ({ isOpen, onClose, onSuccess }) => {
             <label className="block text-sm font-medium text-secondary-700 mb-3">
               Team Members
             </label>
-            <div className="max-h-40 overflow-y-auto border border-secondary-300 rounded-lg p-3">
-              {users.map((user) => (
-                <label key={user._id} className="flex items-center space-x-3 py-2 hover:bg-secondary-50 rounded cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={formData.team.some(member => member.user === user._id)}
-                    onChange={() => handleTeamChange(user._id, 'member')}
-                    className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-secondary-300 rounded"
-                  />
-                  <div className="flex items-center space-x-2">
-                    <div className="w-8 h-8 bg-primary-100 rounded-full flex items-center justify-center">
-                      <span className="text-sm font-medium text-primary-600">
-                        {user.name.charAt(0).toUpperCase()}
-                      </span>
+            <div className="max-h-40 overflow-y-auto border border-secondary-300 rounded-lg p-3 space-y-2">
+              {users.map((user) => {
+                const isSelected = formData.team.some(member => member.user === user._id);
+                return (
+                  <div
+                    key={user._id}
+                    onClick={() => handleTeamChange(user._id, 'member')}
+                    className={`flex items-center space-x-3 p-3 rounded-lg border-2 cursor-pointer transition-all duration-200 ${
+                      isSelected
+                        ? 'border-primary-500 bg-primary-50 shadow-sm'
+                        : 'border-secondary-200 bg-white hover:border-primary-300 hover:bg-primary-25'
+                    }`}
+                  >
+                    <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all duration-200 ${
+                      isSelected
+                        ? 'border-primary-500 bg-primary-500'
+                        : 'border-secondary-300 bg-white'
+                    }`}>
+                      {isSelected && (
+                        <div className="w-2 h-2 bg-white rounded-full"></div>
+                      )}
                     </div>
-                    <div>
-                      <p className="text-sm font-medium text-secondary-900">{user.name}</p>
-                      <p className="text-xs text-secondary-500">{user.email}</p>
+                    <div className="flex items-center space-x-3 flex-1">
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-all duration-200 ${
+                        isSelected
+                          ? 'bg-primary-100'
+                          : 'bg-secondary-100'
+                      }`}>
+                        <span className={`text-sm font-medium ${
+                          isSelected
+                            ? 'text-primary-700'
+                            : 'text-secondary-600'
+                        }`}>
+                          {user.name.charAt(0).toUpperCase()}
+                        </span>
+                      </div>
+                      <div className="flex-1">
+                        <p className={`text-sm font-medium ${
+                          isSelected
+                            ? 'text-primary-900'
+                            : 'text-secondary-900'
+                        }`}>
+                          {user.name}
+                        </p>
+                        <p className={`text-xs ${
+                          isSelected
+                            ? 'text-primary-600'
+                            : 'text-secondary-500'
+                        }`}>
+                          {user.email}
+                        </p>
+                      </div>
+                      {isSelected && (
+                        <div className="text-primary-500">
+                          <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                          </svg>
+                        </div>
+                      )}
                     </div>
                   </div>
-                </label>
-              ))}
+                );
+              })}
             </div>
           </div>
 

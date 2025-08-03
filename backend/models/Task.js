@@ -100,7 +100,6 @@ const taskSchema = new mongoose.Schema({
   },
   reviewStatus: {
     type: String,
-    enum: ['pending', 'approved', 'rejected'],
     default: null
   },
   reviewComments: {

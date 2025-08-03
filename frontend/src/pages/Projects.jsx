@@ -150,7 +150,7 @@ const Projects = () => {
       {/* Projects Grid */}
       {projects.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {projects.map((project) => (
+          {projects.filter(project => project && project._id).map((project) => (
             <Link
               key={project._id}
               to={`/projects/${project._id}`}

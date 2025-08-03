@@ -35,8 +35,13 @@ const getProjects = async (req, res) => {
 
 
 
-    // Calculate progress for each project
+    // Calculate progress for each project and clean up null team members
     for (let project of projects) {
+      // Filter out null team members
+      if (project.team) {
+        project.team = project.team.filter(member => member && member.user);
+      }
+
       const calculatedProgress = await project.calculateProgress();
       if (calculatedProgress !== project.progress) {
         project.progress = calculatedProgress;
@@ -92,6 +97,11 @@ const getProject = async (req, res) => {
       .populate('assignee', 'name email avatar')
       .populate('reporter', 'name email avatar')
       .sort({ createdAt: -1 });
+
+    // Filter out null team members
+    if (project.team) {
+      project.team = project.team.filter(member => member && member.user);
+    }
 
     // Calculate and update progress
     const calculatedProgress = await project.calculateProgress();
